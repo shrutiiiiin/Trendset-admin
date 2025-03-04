@@ -33,7 +33,7 @@ const Dashboard = () => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [newAnnouncement, setNewAnnouncement] = useState("");
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
-  const [isAdmin] = useState(true); // Set to true for testing, should be determined by auth
+  const [isAdmin] = useState(true); 
 
   useEffect(() => {
     fetchTodayEmployeeData();
