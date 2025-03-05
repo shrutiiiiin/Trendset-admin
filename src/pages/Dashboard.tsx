@@ -1,4 +1,4 @@
-import  { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
 import { 
   Users, 
@@ -9,13 +9,20 @@ import {
   Calendar,
   CheckCircle,
   XCircle,
-  Eye,
-  EyeOff
+  Trash2
 } from 'lucide-react';
 import EmployeeDashboard from './EmployeeDashboard';
 import useDailyEmployeeStore from '../store/useDailyEmployeeStore';
 import { format } from 'date-fns';
-import { collection, addDoc, getDocs, query, orderBy, updateDoc, doc } from 'firebase/firestore';
+import { 
+  collection, 
+  addDoc, 
+  getDocs, 
+  query, 
+  orderBy, 
+  deleteDoc, 
+  doc 
+} from 'firebase/firestore';
 import { db } from '../config/firebase';
 
 interface Announcement {
@@ -24,7 +31,6 @@ interface Announcement {
   date: string;
   author: string;
   timestamp: number;
-  seen: boolean;
 }
 
 const Dashboard = () => {
@@ -34,6 +40,7 @@ const Dashboard = () => {
   const [newAnnouncement, setNewAnnouncement] = useState("");
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
   const [isAdmin] = useState(true); 
+  const [showAllAnnouncements, setShowAllAnnouncements] = useState(false);
 
   useEffect(() => {
     fetchTodayEmployeeData();
@@ -59,8 +66,7 @@ const Dashboard = () => {
             content: data.content,
             date: data.date,
             author: data.author,
-            timestamp: data.timestamp,
-            seen: data.seen || false 
+            timestamp: data.timestamp
           });
         });
         
@@ -87,8 +93,7 @@ const Dashboard = () => {
         content: newAnnouncement,
         date: dateString,
         author: "Admin",
-        timestamp: Date.now(),
-        seen: false // Initialize as unseen
+        timestamp: Date.now()
       };
       
       // Add to main announcements collection
@@ -109,23 +114,20 @@ const Dashboard = () => {
     }
   };
 
-  // Toggle seen status for an announcement
-  const toggleSeenStatus = async (id: string, currentStatus: boolean) => {
+  // Delete announcement
+  const handleDeleteAnnouncement = async (id: string) => {
     try {
-      // Update in Firestore
+      // Delete from Firestore
       const announcementRef = doc(db, "announcements", id);
-      await updateDoc(announcementRef, {
-        seen: !currentStatus
-      });
+      await deleteDoc(announcementRef);
       
       // Update local state
-      setAnnouncements(announcements.map(announcement => 
-        announcement.id === id 
-          ? { ...announcement, seen: !currentStatus } 
-          : announcement
+      setAnnouncements(announcements.filter(announcement => 
+        announcement.id !== id
       ));
     } catch (error) {
-      console.error("Error updating announcement status:", error);
+      console.error("Error deleting announcement:", error);
+      alert("Failed to delete announcement. Please try again.");
     }
   };
 
@@ -145,17 +147,17 @@ const Dashboard = () => {
     };
   };
 
-  // Get only the two most recent announcements
-  const recentAnnouncements = announcements.slice(0, 2);
-  
-  // Count unseen announcements
-  const unseenCount = announcements.filter(a => !a.seen).length;
+  // Determine which announcements to display
+  const displayAnnouncements = showAllAnnouncements 
+    ? announcements 
+    : announcements.slice(0, 2);
 
   const stats = calculateStatistics();
   const getStatusDisplay = (status: string | undefined) => {
     if (!status) return 'Unknown';
     return status.charAt(0).toUpperCase() + status.slice(1);
   };
+
   const renderContent = () => {
     if (activePage === 'Employees') {
       return <EmployeeDashboard />;
@@ -229,8 +231,11 @@ const Dashboard = () => {
               </p>
             </div>
             {announcements.length > 2 && (
-              <button className="text-sm text-indigo-600 hover:text-indigo-800">
-                View all ({announcements.length})
+              <button 
+                onClick={() => setShowAllAnnouncements(!showAllAnnouncements)}
+                className="text-sm text-indigo-600 hover:text-indigo-800"
+              >
+                {showAllAnnouncements ? "Show Less" : `View all (${announcements.length})`}
               </button>
             )}
           </div>
@@ -257,43 +262,38 @@ const Dashboard = () => {
               </div>
             )}
             
-            {/* Recent Announcements list - only showing 2 */}
+            {/* Announcements list */}
             <div className="space-y-4">
               {loadingAnnouncements ? (
                 <div className="flex items-center justify-center py-4">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
                 </div>
-              ) : recentAnnouncements.length > 0 ? (
-                recentAnnouncements.map((announcement) => (
+              ) : displayAnnouncements.length > 0 ? (
+                displayAnnouncements.map((announcement) => (
                   <div 
                     key={announcement.id} 
-                    className={`border-l-4 ${announcement.seen ? 'border-gray-300' : 'border-indigo-500'} pl-4 py-2`}
+                    className="border-l-4 border-indigo-500 pl-4 py-2 relative"
                   >
                     <div className="flex justify-between items-start">
                       <div>
-                        <div className="flex items-center">
-                          <p className={`${announcement.seen ? 'text-gray-600' : 'text-gray-800 font-medium'}`}>
-                            {announcement.content}
-                          </p>
-                          {!announcement.seen && (
-                            <span className="ml-2 bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded-full">
-                              New
-                            </span>
-                          )}
-                        </div>
+                        <p className="text-gray-800 font-medium">
+                          {announcement.content}
+                        </p>
                       </div>
                       <div className="flex items-center">
                         <div className="text-right mr-3">
                           <p className="text-sm text-gray-500">{announcement.date}</p>
                           <p className="text-xs text-gray-400">{announcement.author}</p>
                         </div>
-                        <button 
-                          onClick={() => toggleSeenStatus(announcement.id, announcement.seen)}
-                          className="text-gray-400 hover:text-indigo-600"
-                          title={announcement.seen ? "Mark as unread" : "Mark as read"}
-                        >
-                          {announcement.seen ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
+                        {isAdmin && (
+                          <button 
+                            onClick={() => handleDeleteAnnouncement(announcement.id)}
+                            className="text-red-400 hover:text-red-600"
+                            title="Delete announcement"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -384,9 +384,9 @@ const Dashboard = () => {
           <div className="flex items-center space-x-4">
             <button className="p-2 hover:bg-gray-100 rounded-full relative">
               <Bell className="w-6 h-6 text-gray-600" />
-              {unseenCount > 0 && (
+              {announcements.length > 0 && (
                 <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                  {unseenCount > 9 ? '9+' : unseenCount}
+                  {announcements.length > 9 ? '9+' : announcements.length}
                 </span>
               )}
             </button>
