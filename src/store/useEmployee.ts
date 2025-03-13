@@ -68,6 +68,7 @@ interface EmployeeStore {
   payrolls: PayrollDetails[];
   loading: boolean;
   error: string | null;
+  deleteOldPayrolls: (olderThanMonths: number) => Promise<void>;
   fetchEmployees: () => Promise<void>;
   fetchTodayLocation: (employeeId: string) => Promise<LocationData | undefined>;
   fetchPayrollsForMonth: (month: string) => Promise<void>;
@@ -84,6 +85,67 @@ const useEmployeeStore = create<EmployeeStore>((set, get) => ({
   payrolls: [],
   loading: false,
   error: null,
+
+  deleteOldPayrolls: async (olderThanMonths: number) => {
+    set({ loading: true, error: null });
+    try {
+     
+      const currentDate = new Date();
+      const cutoffDate = new Date(currentDate);
+      cutoffDate.setMonth(cutoffDate.getMonth() - olderThanMonths);
+      
+     
+      const cutoffMonth = format(cutoffDate, 'MM-yyyy');
+      
+     
+      const employeesCollectionRef = collection(db, 'employees');
+      const employeeSnapshots = await getDocs(employeesCollectionRef);
+      
+   
+      let totalDeleted = 0;
+      let employeesProcessed = 0;
+      
+      // Process each employee
+      for (const employeeDoc of employeeSnapshots.docs) {
+        const employeeId = employeeDoc.id;
+        employeesProcessed++;
+        
+        // Get all payroll records for this employee
+        const payrollRef = collection(db, `employees/${employeeId}/payroll`);
+        const payrollSnapshot = await getDocs(payrollRef);
+        
+        const deletionPromises = [];
+        
+        for (const payrollDoc of payrollSnapshot.docs) {
+          const payrollData = payrollDoc.data() as PayrollDetails;
+          const payrollMonth = payrollData.month; // Format: MM-YYYY
+          
+          if (payrollMonth < cutoffMonth) {
+            deletionPromises.push(deleteDoc(payrollDoc.ref));
+            totalDeleted++;
+          }
+        }
+        
+        if (deletionPromises.length > 0) {
+          await Promise.all(deletionPromises);
+        }
+      }
+      
+      console.log(`Payroll cleanup completed: ${totalDeleted} old payrolls deleted across ${employeesProcessed} employees`);
+      
+      // After deletion, refresh the current payroll data if needed
+      const currentMonthFormatted = format(new Date(), 'MM-yyyy');
+      await get().fetchPayrollsForMonth(currentMonthFormatted);
+      
+      set({ loading: false });
+    } catch (err) {
+      console.error('Error deleting old payrolls:', err);
+      set({
+        error: err instanceof Error ? err.message : 'Failed to delete old payrolls',
+        loading: false,
+      });
+    }
+  },
 
   fetchTodayLocation: async (employeeId: string) => {
     try {
@@ -105,8 +167,7 @@ const useEmployeeStore = create<EmployeeStore>((set, get) => ({
   fetchPayrollsForMonth: async (month: string) => {
     set({ loading: true, error: null });
     try {
-      // Note: This function is less relevant with the new structure unless we keep a top-level payrolls collection.
-      // For now, we'll leave it as is, but it could be removed or adapted to query all employees' payroll subcollections.
+     
       const payrollRef = collection(db, 'payrolls');
       const q = query(payrollRef, where('month', '==', month));
       const payrollSnapshot = await getDocs(q);
