@@ -1,7 +1,5 @@
-// In PayrollTable.tsx
-
-import  { useState, useEffect } from 'react';
-import { Download } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import useEmployeeStore, { EmployeeDetails, PayrollDetails } from '../store/useEmployee';
 import * as XLSX from 'xlsx';
 import {
@@ -14,9 +12,11 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import EmployeePayrollModal from './EmployeePayrollModal';
-import { format } from 'date-fns';
+import { format, subMonths, addMonths } from 'date-fns';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { collection, query, where, getDocs, doc, writeBatch } from 'firebase/firestore';
+import { db } from '../config/firebase';
 
-// PayrollData interface (unchanged)
 export interface PayrollData extends EmployeeDetails {
   workingDays: string;
   reportedDays: string;
@@ -36,9 +36,8 @@ export interface PayrollData extends EmployeeDetails {
   medicalContribution: string;
 }
 
-// calculatePayroll function (unchanged)
 export const calculatePayroll = (row: PayrollData) => {
-  // Default values
+  // ... [calculation function remains unchanged]
   const workingDays = parseFloat(row.workingDays) || 31;
   const reportedDays = parseFloat(row.reportedDays) || workingDays;
   const baseSalary = parseFloat(row.basic) || 0;
@@ -84,31 +83,71 @@ export const calculatePayroll = (row: PayrollData) => {
   };
 };
 
+const getDaysInMonth = (month: string) => {
+  const [monthNum, year] = month.split('-');
+  return new Date(parseInt(year), parseInt(monthNum), 0).getDate();
+};
+
+const formatMonthForDisplay = (month: string) => {
+  const [monthNum, year] = month.split('-');
+  const date = new Date(parseInt(year), parseInt(monthNum) - 1, 1);
+  return format(date, 'MMMM yyyy');
+};
+
+// Modified to only return the last 3 months
+const getAvailableMonths = () => {
+  const months = [];
+  const today = new Date();
+  
+  // Only get the last 3 months
+  for (let i = 0; i < 3; i++) {
+    const date = subMonths(today, i);
+    months.push(format(date, 'MM-yyyy'));
+  }
+  
+  return months;
+};
+
 const PayrollTable = () => {
-  const { employees, payrolls, fetchEmployees, fetchPayrollsForMonth, updatePayroll } = useEmployeeStore();
+  const { employees, payrolls, fetchEmployees, fetchPayrollsForMonth, updatePayroll, deleteOldPayrolls } = useEmployeeStore();
   const [editableData, setEditableData] = useState<PayrollData[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentMonth] = useState(format(new Date(), 'MM-yyyy'));
+  const [currentMonth, setCurrentMonth] = useState(format(new Date(), 'MM-yyyy'));
+  const [isLoading, setIsLoading] = useState(false);
+  const availableMonths = getAvailableMonths();
 
-  // Fetch employees on mount
   useEffect(() => {
     fetchEmployees();
-  }, [fetchEmployees]);
+    
+    // Automatically delete payrolls older than 3 months at midnight
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
+    const msUntilMidnight = midnight.getTime() - now.getTime();
+    
+    const timeoutId = setTimeout(() => {
+      deleteOldPayrolls(3); 
+      const intervalId = setInterval(() => {
+        deleteOldPayrolls(3);
+      }, 24 * 60 * 60 * 1000);
+      
+      return () => clearInterval(intervalId);
+    }, msUntilMidnight);
+    
+    return () => clearTimeout(timeoutId);
+  }, [fetchEmployees, deleteOldPayrolls]);
 
-  // Fetch payrolls when currentMonth changes
   useEffect(() => {
     fetchPayrollsForMonth(currentMonth);
   }, [currentMonth, fetchPayrollsForMonth]);
 
-  // Update editableData based on employees and payrolls
   useEffect(() => {
     const transformedData: PayrollData[] = employees.map((emp) => {
       const payrollForMonth = payrolls.find(
         (p) => p.employeeId === emp.id && p.month === currentMonth
       );
+      
       if (payrollForMonth) {
-        // Use saved payroll data
         return {
           ...emp,
           workingDays: payrollForMonth.workingDays,
@@ -130,10 +169,11 @@ const PayrollTable = () => {
         };
       } else {
         // Use default values and calculate payroll
+        const daysInMonth = getDaysInMonth(currentMonth);
         const defaultData = {
           ...emp,
-          workingDays: '31',
-          reportedDays: '31',
+          workingDays: daysInMonth.toString(),
+          reportedDays: daysInMonth.toString(),
           basic: emp.baseSalary?.toString() || '0',
           da: '0',
           hra: '0',
@@ -149,6 +189,7 @@ const PayrollTable = () => {
           esicContribution: '0',
           medicalContribution: '0',
         };
+        
         const calculations = calculatePayroll(defaultData);
         return {
           ...defaultData,
@@ -156,17 +197,248 @@ const PayrollTable = () => {
         };
       }
     });
+    
     setEditableData(transformedData);
   }, [employees, payrolls, currentMonth]);
+
+  // Calculate attendance from daily data
+  const calculateAttendanceForEmployee = async (employeeId: string, month: string) => {
+    try {
+      const attendanceDays = await fetchDailyAttendanceData(employeeId, month);
+      return attendanceDays;
+    } catch (error) {
+      console.error('Error fetching attendance data:', error);
+      return null;
+    }
+  };
+
+  // Function to fetch daily attendance data from Firestore
+  const fetchDailyAttendanceData = async (employeeId: string, month: string) => {
+    const [monthNum, year] = month.split('-');
+    const daysInMonth = getDaysInMonth(month);
+    
+    let presentDays = 0;
+    
+    // Create a date range for the month - starting with first day
+    const startDate = `01-${monthNum}-${year}`;
+    // Format the last day with leading zero if necessary
+    const lastDay = daysInMonth.toString().padStart(2, '0');
+    const endDate = `${lastDay}-${monthNum}-${year}`;
+    
+    // Query Firestore for daily attendance records
+    const dailyDataRef = collection(db, 'employees', employeeId, 'daily_data');
+    
+    try {
+      // Use compound query to get all records for the month date range
+      const q = query(
+        dailyDataRef,
+        where('date', '>=', startDate),
+        where('date', '<=', endDate)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.status === 'present') {
+          presentDays++;
+        }
+      });
+      
+      console.log(`Employee ${employeeId} has ${presentDays} present days in ${month}`);
+      return presentDays;
+    } catch (error) {
+      console.error(`Error fetching attendance for employee ${employeeId}:`, error);
+      throw error;
+    }
+  };
+
+  const deleteCurrentMonthData = async () => {
+    if (!confirm(`Are you sure you want to delete ALL data for ${formatMonthForDisplay(currentMonth)}? This will remove both payroll and attendance records for this month.`)) {
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      await deleteAttendanceData();
+      
+      const payrollsToDelete = payrolls.filter(p => p.month === currentMonth);
+      
+      if (payrollsToDelete.length > 0) {
+        
+        const BATCH_SIZE = 450;
+        let batch = writeBatch(db);
+        let operationCount = 0;
+        
+        for (const payroll of payrollsToDelete) {
+      
+          const payrollRef = doc(db, 'employees', payroll.employeeId, 'payroll', payroll.month);
+          
+          batch.delete(payrollRef);
+          operationCount++;
+          
+          if (operationCount >= BATCH_SIZE) {
+            await batch.commit();
+            batch = writeBatch(db);
+            operationCount = 0;
+          }
+        }
+        
+        // Commit any remaining operations
+        if (operationCount > 0) {
+          await batch.commit();
+        }
+      }
+      
+      // Refresh data after deletion
+      fetchPayrollsForMonth(currentMonth);
+      
+      alert(`Successfully deleted all data for ${formatMonthForDisplay(currentMonth)}`);
+      
+      // If the deleted month was the current one, navigate to the newest available month
+      if (availableMonths.length > 0 && !availableMonths.includes(currentMonth)) {
+        setCurrentMonth(availableMonths[0]);
+      }
+      
+    } catch (error) {
+      console.error('Error deleting month data:', error);
+      alert('Failed to delete month data. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteAttendanceData = async () => {
+    try {
+      const [monthNum, year] = currentMonth.split('-');
+      const daysInMonth = getDaysInMonth(currentMonth);
+      const startDate = `01-${monthNum}-${year}`;
+      const lastDay = daysInMonth.toString().padStart(2, '0');
+      const endDate = `${lastDay}-${monthNum}-${year}`;
+      
+      let totalDeleted = 0;
+      
+      for (const employee of employees) {
+        const dailyDataRef = collection(db, 'employees', employee.id, 'daily_data');
+        const q = query(
+          dailyDataRef,
+          where('date', '>=', startDate),
+          where('date', '<=', endDate)
+        );
+        
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+          // Use batched writes for more efficient deletes
+          // Firestore limits batches to 500 operations
+          const BATCH_SIZE = 450;
+          let batch = writeBatch(db);
+          let operationCount = 0;
+          
+          for (const document of querySnapshot.docs) {
+            batch.delete(doc(db, 'employees', employee.id, 'daily_data', document.id));
+            operationCount++;
+            totalDeleted++;
+            
+            // If we've reached the batch limit, commit and start a new batch
+            if (operationCount >= BATCH_SIZE) {
+              await batch.commit();
+              batch = writeBatch(db);
+              operationCount = 0;
+            }
+          }
+          
+          // Commit any remaining operations
+          if (operationCount > 0) {
+            await batch.commit();
+          }
+        }
+      }
+      
+      console.log(`Deleted ${totalDeleted} attendance records for ${formatMonthForDisplay(currentMonth)}`);
+      return totalDeleted;
+      
+    } catch (error) {
+      console.error('Error deleting attendance data:', error);
+      throw error;
+    }
+  };
+
+  const updateAttendanceForAll = async () => {
+    setIsLoading(true);
+    const updatedData = [...editableData];
+    
+    try {
+      for (let i = 0; i < employees.length; i++) {
+        const emp = employees[i];
+        const attendanceDays = await calculateAttendanceForEmployee(emp.id, currentMonth);
+        
+        if (attendanceDays !== null) {
+          // const workingDays = updatedData[i].workingDays;
+          
+          updatedData[i] = {
+            ...updatedData[i],
+            reportedDays: attendanceDays.toString(),
+          };
+          
+          // Recalculate payroll based on new attendance
+          const calculations = calculatePayroll(updatedData[i]);
+          updatedData[i] = {
+            ...updatedData[i],
+            ...calculations,
+          };
+        }
+      }
+      
+      setEditableData(updatedData);
+      
+      // Automatically save updated attendance
+      const savePromises = updatedData.map(async (employee) => {
+        const calculations = calculatePayroll(employee);
+        const payrollData: Omit<PayrollDetails, 'createdAt'> = {
+          employeeId: employee.id,
+          month: currentMonth,
+          workingDays: employee.workingDays,
+          reportedDays: employee.reportedDays,
+          basic: calculations.basic,
+          da: calculations.da,
+          hra: calculations.hra,
+          specialPay: calculations.specialPay,
+          grossEarning: calculations.grossEarning,
+          providentFund: calculations.providentFund,
+          professional: calculations.professional,
+          advance: employee.advance,
+          tds: employee.tds,
+          totalDeductions: calculations.totalDeductions,
+          netPay: calculations.netPay,
+          cpf: calculations.cpf,
+          esicContribution: calculations.esicContribution,
+          medicalContribution: calculations.medicalContribution,
+        };
+        return updatePayroll(employee.id, payrollData);
+      });
+      
+      await Promise.all(savePromises);
+      alert('Attendance data updated and saved successfully!');
+    } catch (error) {
+      console.error('Error updating attendance data:', error);
+      alert('Failed to update some attendance data. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const exportToExcel = () => {
     const ws = XLSX.utils.json_to_sheet(editableData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Payroll");
-    XLSX.writeFile(wb, `Payroll_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(wb, `Payroll_${currentMonth}.xlsx`);
   };
 
   const saveAllPayrolls = async () => {
+    setIsLoading(true);
+    
     const savePromises = editableData.map(async (employee) => {
       const calculations = calculatePayroll(employee);
       const payrollData: Omit<PayrollDetails, 'createdAt'> = {
@@ -198,12 +470,51 @@ const PayrollTable = () => {
     } catch (error) {
       console.error('Error saving payroll data:', error);
       alert('Failed to save some payroll data. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  // Handle month change
+  const changeMonth = (newMonth: string) => {
+    setCurrentMonth(newMonth);
+  };
 
+  // Navigate to previous month
+  const goToPreviousMonth = () => {
+    const [month, year] = currentMonth.split('-');
+    const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+    const prevMonth = format(subMonths(date, 1), 'MM-yyyy');
+    
+    // Don't allow navigating earlier than 3 months ago
+    const threeMonthsAgo = format(subMonths(new Date(), 2), 'MM-yyyy');
+    
+    if (prevMonth >= threeMonthsAgo) {
+      setCurrentMonth(prevMonth);
+    }
+  };
 
+  // Navigate to next month
+  const goToNextMonth = () => {
+    const [month, year] = currentMonth.split('-');
+    const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+    const nextMonth = format(addMonths(date, 1), 'MM-yyyy');
+    
+    // Don't allow navigating to future months
+    const currentDate = new Date();
+    const currentMonthFormatted = format(currentDate, 'MM-yyyy');
+    
+    if (nextMonth <= currentMonthFormatted) {
+      setCurrentMonth(nextMonth);
+    }
+  };
 
+  // Check if we're at the current month
+  const isCurrentMonth = format(new Date(), 'MM-yyyy') === currentMonth;
+  
+  // Check if we're at the oldest available month (3 months ago)
+  const oldestMonth = format(subMonths(new Date(), 2), 'MM-yyyy');
+  const isOldestMonth = oldestMonth === currentMonth || currentMonth < oldestMonth;
 
   return (
     <div className="w-full h-screen max-h-screen bg-white flex flex-col overflow-hidden">
@@ -211,13 +522,70 @@ const PayrollTable = () => {
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">Payroll Management</h1>
           <div className="flex space-x-4 items-center">
+            <div className="flex items-center space-x-2">
+              <Button 
+                onClick={goToPreviousMonth} 
+                variant="outline" 
+                size="icon" 
+                disabled={isOldestMonth || isLoading}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              
+              <Select value={currentMonth} onValueChange={changeMonth} disabled={isLoading}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue>{formatMonthForDisplay(currentMonth)}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {availableMonths.map((month) => (
+                    <SelectItem key={month} value={month}>
+                      {formatMonthForDisplay(month)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Button 
+                onClick={goToNextMonth} 
+                variant="outline" 
+                size="icon" 
+                disabled={isCurrentMonth || isLoading}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
             
-            <Button onClick={saveAllPayrolls} variant="default">
-              Save All Payrolls
+            <Button 
+              onClick={updateAttendanceForAll} 
+              variant="outline" 
+              disabled={isLoading}
+            >
+              {isLoading ? 'Updating...' : 'Update Attendance'}
             </Button>
-            <Button onClick={exportToExcel} variant="outline">
+            
+            <Button 
+              onClick={saveAllPayrolls} 
+              variant="default" 
+              disabled={isLoading}
+            >
+              {isLoading ? 'Saving...' : 'Save All Payrolls'}
+            </Button>
+            
+            <Button 
+              onClick={exportToExcel} 
+              variant="outline" 
+              disabled={isLoading}
+            >
               <Download className="mr-2 h-4 w-4" />
               Export to Excel
+            </Button>
+            
+            <Button 
+              onClick={deleteCurrentMonthData} 
+              variant="destructive" 
+              disabled={isLoading}
+            >
+              Delete Month Data
             </Button>
           </div>
         </div>
@@ -235,15 +603,8 @@ const PayrollTable = () => {
                   <TableHead className="w-36 p-4 text-left">Working Days</TableHead>
                   <TableHead className="w-36 p-4 text-left">Reported Days</TableHead>
                   <TableHead className="w-36 p-4 text-left">Basic</TableHead>
-                  {/* <TableHead className="w-36 p-4 text-left">DA</TableHead>
-                  <TableHead className="w-36 p-4 text-left">HRA</TableHead> */}
                   <TableHead className="w-36 p-4 text-left">Special Pay</TableHead>
                   <TableHead className="w-36 p-4 text-left">Gross Earning</TableHead>
-                  {/* <TableHead className="w-36 p-4 text-left">PF</TableHead>
-                  <TableHead className="w-36 p-4 text-left">Prof. Tax</TableHead> */}
-                  {/* <TableHead className="w-36 p-4 text-left">ESIC</TableHead> */}
-                  {/* <TableHead className="w-36 p-4 text-left">Advance</TableHead>
-                  <TableHead className="w-36 p-4 text-left">TDS</TableHead> */}
                   <TableHead className="w-36 p-4 text-left">Total Deductions</TableHead>
                   <TableHead className="w-36 p-4 text-left">Net Pay</TableHead>
                   <TableHead className="w-24 p-4 text-left">Actions</TableHead>
@@ -258,15 +619,8 @@ const PayrollTable = () => {
                     <TableCell className="p-4 text-left">{row.workingDays}</TableCell>
                     <TableCell className="p-4 text-left">{row.reportedDays}</TableCell>
                     <TableCell className="p-4 text-left">{row.basic}</TableCell>
-                    {/* <TableCell className="p-4 text-left">{row.da}</TableCell>
-                    <TableCell className="p-4 text-left">{row.hra}</TableCell> */}
                     <TableCell className="p-4 text-left">{row.specialPay}</TableCell>
                     <TableCell className="p-4 text-left">{row.grossEarning}</TableCell>
-                    {/* <TableCell className="p-4 text-left">{row.providentFund}</TableCell>
-                    <TableCell className="p-4 text-left">{row.professional}</TableCell>
-                    <TableCell className="p-4 text-left">{row.esicNumber}</TableCell>
-                    <TableCell className="p-4 text-left">{row.advance}</TableCell>
-                    <TableCell className="p-4 text-left">{row.tds}</TableCell> */}
                     <TableCell className="p-4 text-left">{row.totalDeductions}</TableCell>
                     <TableCell className="p-4 text-left font-medium">{row.netPay}</TableCell>
                     <TableCell className="p-4 text-left">
@@ -276,6 +630,7 @@ const PayrollTable = () => {
                           setIsModalOpen(true);
                         }}
                         size="sm"
+                        disabled={isLoading}
                       >
                         Edit
                       </Button>
