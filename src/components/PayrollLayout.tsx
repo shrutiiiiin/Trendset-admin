@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Download, ChevronLeft, ChevronRight } from 'lucide-react';
-import useEmployeeStore, { EmployeeDetails, PayrollDetails } from '../store/useEmployee';
+import useEmployeeStore, { EmployeeDetails, PayrollDetails,  } from '../store/useEmployee';
 import * as XLSX from 'xlsx';
 import {
   Table,
@@ -37,7 +37,6 @@ export interface PayrollData extends EmployeeDetails {
 }
 
 export const calculatePayroll = (row: PayrollData) => {
-  // ... [calculation function remains unchanged]
   const workingDays = parseFloat(row.workingDays) || 31;
   const reportedDays = parseFloat(row.reportedDays) || workingDays;
   const baseSalary = parseFloat(row.basic) || 0;
@@ -94,12 +93,10 @@ const formatMonthForDisplay = (month: string) => {
   return format(date, 'MMMM yyyy');
 };
 
-// Modified to only return the last 3 months
 const getAvailableMonths = () => {
   const months = [];
   const today = new Date();
   
-  // Only get the last 3 months
   for (let i = 0; i < 3; i++) {
     const date = subMonths(today, i);
     months.push(format(date, 'MM-yyyy'));
@@ -120,7 +117,6 @@ const PayrollTable = () => {
   useEffect(() => {
     fetchEmployees();
     
-    // Automatically delete payrolls older than 3 months at midnight
     const now = new Date();
     const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
     const msUntilMidnight = midnight.getTime() - now.getTime();
