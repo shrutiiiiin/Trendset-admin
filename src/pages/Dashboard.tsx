@@ -24,7 +24,7 @@ import {
   doc 
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { time } from 'console';
+
 
 interface Announcement {
   id: string;
@@ -45,12 +45,11 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchTodayEmployeeData();
-    // Refresh data every 5 minutes
     const interval = setInterval(fetchTodayEmployeeData, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch announcements
+
   useEffect(() => {
     const fetchAnnouncements = async () => {
       try {
@@ -82,7 +81,6 @@ const Dashboard = () => {
     fetchAnnouncements();
   }, []);
 
-  // Add new announcement
   const handleAddAnnouncement = async () => {
     if (!newAnnouncement.trim()) return;
     
