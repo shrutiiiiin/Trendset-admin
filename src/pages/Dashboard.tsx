@@ -24,13 +24,14 @@ import {
   doc 
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { time } from 'console';
 
 interface Announcement {
   id: string;
   content: string;
   date: string;
   author: string;
-  timestamp: number;
+  timestamp: String;
 }
 
 const Dashboard = () => {
@@ -86,21 +87,22 @@ const Dashboard = () => {
     if (!newAnnouncement.trim()) return;
     
     try {
-      const today = new Date();
-      const dateString = today.toISOString().split('T')[0];
+      const now = new Date();
+      const dateString = format(now, 'yyyy-MM-dd HH:mm');
+      const timeString = format(now, 'HH:mm')
       
       const announcementData = {
         content: newAnnouncement,
         date: dateString,
         author: "Admin",
-        timestamp: Date.now()
+        timestamp: timeString
+        
+      
       };
       
-      // Add to main announcements collection
       const announcementRef = collection(db, 'announcements');
       const docRef = await addDoc(announcementRef, announcementData);
       
-      // Update state with new announcement
       const newAnnouncementObj: Announcement = {
         id: docRef.id,
         ...announcementData
@@ -114,14 +116,10 @@ const Dashboard = () => {
     }
   };
 
-  // Delete announcement
   const handleDeleteAnnouncement = async (id: string) => {
     try {
-      // Delete from Firestore
       const announcementRef = doc(db, "announcements", id);
       await deleteDoc(announcementRef);
-      
-      // Update local state
       setAnnouncements(announcements.filter(announcement => 
         announcement.id !== id
       ));
