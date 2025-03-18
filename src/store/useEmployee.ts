@@ -175,6 +175,7 @@ const useEmployeeStore = create<EmployeeStore>((set, get) => ({
         ...doc.data() as PayrollDetails,
         id: doc.id,
       }));
+      console.log('Payroll data for month:', payrollData);
       set({ payrolls: payrollData, loading: false });
     } catch (err) {
       console.error('Error fetching payrolls for month:', err);

@@ -38,7 +38,7 @@ export interface PayrollData extends EmployeeDetails {
 
 export const calculatePayroll = (row: PayrollData) => {
   const workingDays = parseFloat(row.workingDays) || 31;
-  const reportedDays = parseFloat(row.reportedDays) || workingDays;
+  const reportedDays = parseFloat(row.reportedDays) ;
   const baseSalary = parseFloat(row.basic) || 0;
   const specialSalary = parseFloat(row.specialPay) || 0;
   const advance = parseFloat(row.advance) || 0;
@@ -169,7 +169,7 @@ const PayrollTable = () => {
         const defaultData = {
           ...emp,
           workingDays: daysInMonth.toString(),
-          reportedDays: daysInMonth.toString(),
+          reportedDays: '0',
           basic: emp.baseSalary?.toString() || '0',
           da: '0',
           hra: '0',
@@ -368,28 +368,52 @@ const PayrollTable = () => {
     try {
       for (let i = 0; i < employees.length; i++) {
         const emp = employees[i];
-        const attendanceDays = await calculateAttendanceForEmployee(emp.id, currentMonth);
         
-        if (attendanceDays !== null) {
-          // const workingDays = updatedData[i].workingDays;
+        // Parse the month and year from currentMonth (format: "MM-yyyy")
+        const [monthStr, yearStr] = currentMonth.split('-');
+        
+        // Get all documents in the daily_data collection for this employee
+        const dailyDataRef = collection(db, 'employees', emp.id, 'daily_data');
+        const querySnapshot = await getDocs(dailyDataRef);
+        
+        // Count documents that match the current month
+        let attendanceDays = 0;
+        
+        querySnapshot.forEach((doc) => {
+          // Document ID is in format "DD-MM-YYYY"
+          const docId = doc.id;
+          const dateParts = docId.split('-');
           
-          updatedData[i] = {
-            ...updatedData[i],
-            reportedDays: attendanceDays.toString(),
-          };
-          
-          // Recalculate payroll based on new attendance
-          const calculations = calculatePayroll(updatedData[i]);
-          updatedData[i] = {
-            ...updatedData[i],
-            ...calculations,
-          };
-        }
+          // Check if it's a valid date format
+          if (dateParts.length === 3) {
+            const docMonth = dateParts[1]; // Month part (MM)
+            const docYear = dateParts[2];  // Year part (YYYY)
+            
+            // If the document is for the current month/year
+            if (docMonth === monthStr && docYear === yearStr) {
+              attendanceDays++;
+            }
+          }
+        });
+        
+        console.log(`Employee ${emp.id} has ${attendanceDays} present days in ${monthStr}-${yearStr}`);
+        
+        updatedData[i] = {
+          ...updatedData[i],
+          reportedDays: attendanceDays.toString(),
+        };
+        
+        // Recalculate payroll based on new attendance
+        const calculations = calculatePayroll(updatedData[i]);
+        updatedData[i] = {
+          ...updatedData[i],
+          ...calculations,
+        };
       }
       
       setEditableData(updatedData);
       
-      // Automatically save updated attendance
+      // Save the updated data
       const savePromises = updatedData.map(async (employee) => {
         const calculations = calculatePayroll(employee);
         const payrollData: Omit<PayrollDetails, 'createdAt'> = {
