@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { format } from 'date-fns';
+import { calculatePayroll } from '@/components/PayrollLayout';
 
 interface LocationData {
   address: string;
@@ -21,6 +22,19 @@ interface LocationData {
   longitude: number;
   timestamp: string;
   accuracy: number;
+}
+interface PayrollWithId extends PayrollDetails {
+  id: string;
+}
+export interface PayrollCalculationInput {
+  workingDays: string;
+  reportedDays: string;
+  basic: string;
+  specialPay: string;
+  advance: string;
+  tds: string;
+  providentFund: string;
+  medicalContribution: string;
 }
 
 export interface EmployeeDetails {
@@ -40,6 +54,7 @@ export interface EmployeeDetails {
 }
 
 export interface PayrollDetails {
+  
   employeeId: string;
   month: string; // Format: "MM-YYYY"
   workingDays: string;
@@ -49,6 +64,8 @@ export interface PayrollDetails {
   hra: string;
   specialPay: string;
   grossEarning: string;
+  payScale: string;
+  esic:string;
   providentFund: string;
   professional: string;
   advance: string;
@@ -65,7 +82,7 @@ type NewEmployeeData = Omit<EmployeeDetails, 'id' | 'todayLocation'>;
 
 interface EmployeeStore {
   employees: EmployeeDetails[];
-  payrolls: PayrollDetails[];
+  payrolls: PayrollWithId[];
   loading: boolean;
   error: string | null;
   deleteOldPayrolls: (olderThanMonths: number) => Promise<void>;
@@ -167,16 +184,115 @@ const useEmployeeStore = create<EmployeeStore>((set, get) => ({
   fetchPayrollsForMonth: async (month: string) => {
     set({ loading: true, error: null });
     try {
-     
-      const payrollRef = collection(db, 'payrolls');
-      const q = query(payrollRef, where('month', '==', month));
-      const payrollSnapshot = await getDocs(q);
-      const payrollData = payrollSnapshot.docs.map(doc => ({
-        ...doc.data() as PayrollDetails,
-        id: doc.id,
-      }));
-      console.log('Payroll data for month:', payrollData);
-      set({ payrolls: payrollData, loading: false });
+      const employees = get().employees;
+      
+      // First, fetch the basic payroll data
+      const payrollDataPromises = employees.map(async (emp) => {
+        const payrollDocRef = doc(db, `employees/${emp.id}/payroll`, month);
+        const payrollDoc = await getDoc(payrollDocRef);
+        
+        // Get the employee details to access the salary information
+        const employeeDetailsRef = doc(db, `employees/${emp.id}/employee_details`, 'details');
+        const employeeDetailsDoc = await getDoc(employeeDetailsRef);
+        
+        let baseSalary = "0";
+        let specialSalary = "0";
+        
+        if (employeeDetailsDoc.exists()) {
+          const details = employeeDetailsDoc.data();
+          baseSalary = details.baseSalary ? details.baseSalary.toString() : "0";
+          specialSalary = details.specialSalary ? details.specialSalary.toString() : "0";
+        }
+        
+        if (payrollDoc.exists()) {
+          const payrollData = payrollDoc.data() as PayrollDetails;
+          return {
+            id: payrollDoc.id,
+            ...payrollData,
+            employeeId: emp.id,
+            // Update with the latest salary information
+            basic: baseSalary,
+            specialPay: specialSalary
+          };
+        }
+        return null;
+      });
+      
+      let payrollData = (await Promise.all(payrollDataPromises))
+        .filter((data): data is PayrollWithId => data !== null);
+      
+      // Parse the month and year from the month parameter
+      const [monthStr, yearStr] = month.split('-');
+      
+      // Now enhance the payroll data with attendance information
+      const updatedPayrollPromises = payrollData.map(async (payroll) => {
+        // Get all documents in the daily_data collection for this employee
+        const dailyDataRef = collection(db, 'employees', payroll.employeeId, 'daily_data');
+        const querySnapshot = await getDocs(dailyDataRef);
+        
+        // Count documents that match the current month
+        let attendanceDays = 0;
+        
+        querySnapshot.forEach((doc) => {
+          // Document ID is in format "DD-MM-YYYY"
+          const docId = doc.id;
+          const dateParts = docId.split('-');
+          
+          // Check if it's a valid date format
+          if (dateParts.length === 3) {
+            const docMonth = dateParts[1]; // Month part (MM)
+            const docYear = dateParts[2];  // Year part (YYYY)
+            
+            // If the document is for the current month/year
+            if (docMonth === monthStr && docYear === yearStr) {
+              attendanceDays++;
+            }
+          }
+        });
+        
+        console.log(`Employee ${payroll.employeeId} has ${attendanceDays} present days in ${monthStr}-${yearStr}`);
+        
+        // Create a calculation input object with just the fields needed for calculation
+        const calculationInput: PayrollCalculationInput = {
+          workingDays: payroll.workingDays,
+          reportedDays: attendanceDays.toString(),
+          basic: payroll.basic,
+          specialPay: payroll.specialPay,
+          advance: payroll.advance,
+          tds: payroll.tds,
+          providentFund: payroll.providentFund,
+          medicalContribution: payroll.medicalContribution
+        };
+        
+        // Recalculate payroll based on new attendance and salary information
+        const calculations = calculatePayroll(calculationInput);
+        console.log('Payroll calculations:', calculations);
+        
+        // Create the updated payroll object
+        const updatedPayroll = {
+          ...payroll,
+          reportedDays: attendanceDays.toString(),
+          ...calculations
+        };
+        
+        // Update the payroll record in Firestore
+        const payrollRef = doc(db, `employees/${payroll.employeeId}/payroll`, month);
+        await setDoc(payrollRef, {
+          ...updatedPayroll,
+          createdAt: payroll.createdAt // Keep the original creation timestamp
+        }, { merge: true });
+        
+        return updatedPayroll;
+      });
+      
+      // Type assertion to ensure TypeScript knows the result is PayrollWithId[]
+      const updatedPayrollData = await Promise.all(updatedPayrollPromises) as PayrollWithId[];
+      
+      console.log('Updated payroll data:', updatedPayrollData);
+      
+      // Update the state with the enhanced payroll data
+      set({ payrolls: updatedPayrollData, loading: false });
+      
     } catch (err) {
       console.error('Error fetching payrolls for month:', err);
       set({
@@ -254,6 +370,7 @@ const useEmployeeStore = create<EmployeeStore>((set, get) => ({
         ...doc.data() as PayrollDetails,
         id: doc.id,
       }));
+      console.log('Payroll data:', payrollData);
 
       set(() => ({
         payrolls: payrollData,

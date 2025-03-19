@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Download, ChevronLeft, ChevronRight } from 'lucide-react';
-import useEmployeeStore, { EmployeeDetails, PayrollDetails,  } from '../store/useEmployee';
+import useEmployeeStore, { EmployeeDetails, PayrollCalculationInput, PayrollDetails,  } from '../store/useEmployee';
 import * as XLSX from 'xlsx';
 import {
   Table,
@@ -38,14 +38,16 @@ export interface PayrollData extends EmployeeDetails {
   medicalContribution: string;
 }
 
-export const calculatePayroll = (row: PayrollData) => {
+export const calculatePayroll = (row: PayrollCalculationInput) => {
   const workingDays = parseFloat(row.workingDays) || 31;
   const reportedDays = parseFloat(row.reportedDays) || 0;
   const baseSalary = parseFloat(row.basic) || 0;
   const specialSalary = parseFloat(row.specialPay) || 0;
   
   // Calculate payScale based on reported days
-  const payScale = Math.round((reportedDays / workingDays) * baseSalary);
+  const payScale = reportedDays === 0 
+  ? baseSalary  // If no reported days, use the base salary
+  : Math.round((reportedDays / workingDays) * baseSalary);
   
   // DA calculation (25% of payScale)
   const da = Math.round(payScale * 0.25);
@@ -156,8 +158,10 @@ const PayrollTable = () => {
   }, [fetchEmployees, deleteOldPayrolls]);
 
   useEffect(() => {
-    fetchPayrollsForMonth(currentMonth);
-  }, [currentMonth, fetchPayrollsForMonth]);
+    if (employees.length > 0) {
+      fetchPayrollsForMonth(currentMonth);
+    }
+  }, [currentMonth, fetchPayrollsForMonth, employees]);
 
   useEffect(() => {
     const transformedData: PayrollData[] = employees.map((emp) => {
