@@ -21,6 +21,7 @@ export interface PayrollData extends EmployeeDetails {
   workingDays: string;
   reportedDays: string;
   basic: string;
+  payScale: string; // Added payScale field
   da: string;
   hra: string;
   specialPay: string;
@@ -29,6 +30,7 @@ export interface PayrollData extends EmployeeDetails {
   professional: string;
   advance: string;
   tds: string;
+  esic: string; // Added esic field
   totalDeductions: string;
   netPay: string;
   cpf: string;
@@ -38,36 +40,56 @@ export interface PayrollData extends EmployeeDetails {
 
 export const calculatePayroll = (row: PayrollData) => {
   const workingDays = parseFloat(row.workingDays) || 31;
-  const reportedDays = parseFloat(row.reportedDays) ;
+  const reportedDays = parseFloat(row.reportedDays) || 0;
   const baseSalary = parseFloat(row.basic) || 0;
   const specialSalary = parseFloat(row.specialPay) || 0;
+  
+  // Calculate payScale based on reported days
+  const payScale = Math.round((reportedDays / workingDays) * baseSalary);
+  
+  // DA calculation (25% of payScale)
+  const da = Math.round(payScale * 0.25);
+  
+  // HRA calculation (20% of payScale)
+  const hra = Math.round(payScale * 0.2);
+  
+  // Gross Earning = payScale + specialPay
+  const grossEarning = payScale + specialSalary;
+  
+  // Provident Fund - default to 1800 if not set
+  const providentFund = parseFloat(row.providentFund) || 1800;
+  
+  // Professional Tax - default to 200
+  const professional = 200;
+  
+  // Advance and TDS from row
   const advance = parseFloat(row.advance) || 0;
   const tds = parseFloat(row.tds) || 0;
   
-  const prorateFactor = reportedDays / workingDays;
-  const proratedBasic = Math.round(baseSalary * prorateFactor);
-  
-  const basic = proratedBasic;
-  const da = Math.round(basic * 0.25);
-  const hra = Math.round(basic * 0.20);
-  const specialPay = Math.round(specialSalary * prorateFactor);
-  const grossEarning = basic + da + hra + specialPay;
-  
-  const providentFund = Math.round(grossEarning * 0.0327);
-  const professional = 200;
+  // ESIC calculation (0.75% of grossEarning)
   const esic = Math.round(grossEarning * 0.0075);
+  
+  // Total Deductions
   const totalDeductions = providentFund + professional + advance + tds + esic;
+  
+  // Net Pay
   const netPay = grossEarning - totalDeductions;
   
-  const cpf = Math.round(grossEarning * 0.0327);
+  // CPF (same as providentFund)
+  const cpf = providentFund;
+  
+  // ESIC Contribution (3.25% of grossEarning)
   const esicContribution = Math.round(grossEarning * 0.0325);
-  const medicalContribution = Math.round(grossEarning * 0.02);
+  
+  // Medical Contribution - from row or default to 0
+  const medicalContribution = parseFloat(row.medicalContribution) || 0;
   
   return {
-    basic: basic.toString(),
+    payScale: payScale.toString(),
+    basic: baseSalary.toString(),
     da: da.toString(),
     hra: hra.toString(),
-    specialPay: specialPay.toString(),
+    specialPay: specialSalary.toString(),
     grossEarning: grossEarning.toString(),
     providentFund: providentFund.toString(),
     professional: professional.toString(),
@@ -148,15 +170,17 @@ const PayrollTable = () => {
           ...emp,
           workingDays: payrollForMonth.workingDays,
           reportedDays: payrollForMonth.reportedDays,
-          basic: payrollForMonth.basic,
+          basic: emp.baseSalary?.toString() || '0',  // Always use employee's base salary
+          payScale: payrollForMonth.payScale || '0',  // Include payScale from payroll
           da: payrollForMonth.da,
           hra: payrollForMonth.hra,
-          specialPay: payrollForMonth.specialPay,
+          specialPay: emp.specialSalary?.toString() || '0', // Always use employee's special salary
           grossEarning: payrollForMonth.grossEarning,
           providentFund: payrollForMonth.providentFund,
           professional: payrollForMonth.professional,
           advance: payrollForMonth.advance,
           tds: payrollForMonth.tds,
+          esic: payrollForMonth.esic || '0',  // Include esic from payroll
           totalDeductions: payrollForMonth.totalDeductions,
           netPay: payrollForMonth.netPay,
           cpf: payrollForMonth.cpf,
@@ -171,17 +195,19 @@ const PayrollTable = () => {
           workingDays: daysInMonth.toString(),
           reportedDays: '0',
           basic: emp.baseSalary?.toString() || '0',
+          payScale: '0',  // Initialize payScale
           da: '0',
           hra: '0',
           specialPay: emp.specialSalary?.toString() || '0',
           grossEarning: '0',
-          providentFund: '0',
-          professional: '0',
+          providentFund: '1800',  // Default value
+          professional: '200',
           advance: '0',
           tds: '0',
+          esic: '0',
           totalDeductions: '0',
           netPay: '0',
-          cpf: '0',
+          cpf: '1800',
           esicContribution: '0',
           medicalContribution: '0',
         };
@@ -208,7 +234,7 @@ const PayrollTable = () => {
     }
   };
 
-  // Function to fetch daily attendance data from Firestore
+  
   const fetchDailyAttendanceData = async (employeeId: string, month: string) => {
     const [monthNum, year] = month.split('-');
     const daysInMonth = getDaysInMonth(month);
@@ -421,7 +447,8 @@ const PayrollTable = () => {
           month: currentMonth,
           workingDays: employee.workingDays,
           reportedDays: employee.reportedDays,
-          basic: calculations.basic,
+          basic: employee.basic,
+          payScale: calculations.payScale, // Include payScale
           da: calculations.da,
           hra: calculations.hra,
           specialPay: calculations.specialPay,
@@ -429,6 +456,7 @@ const PayrollTable = () => {
           providentFund: calculations.providentFund,
           professional: calculations.professional,
           advance: employee.advance,
+          esic: calculations.esic, // Include esic
           tds: employee.tds,
           totalDeductions: calculations.totalDeductions,
           netPay: calculations.netPay,
@@ -466,7 +494,8 @@ const PayrollTable = () => {
         month: currentMonth,
         workingDays: employee.workingDays,
         reportedDays: employee.reportedDays,
-        basic: calculations.basic,
+        basic: employee.basic,
+        payScale: calculations.payScale, // Include payScale
         da: calculations.da,
         hra: calculations.hra,
         specialPay: calculations.specialPay,
@@ -474,6 +503,7 @@ const PayrollTable = () => {
         providentFund: calculations.providentFund,
         professional: calculations.professional,
         advance: employee.advance,
+        esic: calculations.esic, // Include esic
         tds: employee.tds,
         totalDeductions: calculations.totalDeductions,
         netPay: calculations.netPay,
@@ -623,6 +653,7 @@ const PayrollTable = () => {
                   <TableHead className="w-36 p-4 text-left">Working Days</TableHead>
                   <TableHead className="w-36 p-4 text-left">Reported Days</TableHead>
                   <TableHead className="w-36 p-4 text-left">Basic</TableHead>
+                  <TableHead className="w-36 p-4 text-left">Pay Scale</TableHead>
                   <TableHead className="w-36 p-4 text-left">Special Pay</TableHead>
                   <TableHead className="w-36 p-4 text-left">Gross Earning</TableHead>
                   <TableHead className="w-36 p-4 text-left">Total Deductions</TableHead>
@@ -639,6 +670,7 @@ const PayrollTable = () => {
                     <TableCell className="p-4 text-left">{row.workingDays}</TableCell>
                     <TableCell className="p-4 text-left">{row.reportedDays}</TableCell>
                     <TableCell className="p-4 text-left">{row.basic}</TableCell>
+                    <TableCell className="p-4 text-left">{row.payScale}</TableCell>
                     <TableCell className="p-4 text-left">{row.specialPay}</TableCell>
                     <TableCell className="p-4 text-left">{row.grossEarning}</TableCell>
                     <TableCell className="p-4 text-left">{row.totalDeductions}</TableCell>

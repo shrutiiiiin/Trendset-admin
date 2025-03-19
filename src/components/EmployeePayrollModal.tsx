@@ -3,12 +3,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import useEmployeeStore, {  PayrollDetails } from "../store/useEmployee";
+import useEmployeeStore, { PayrollDetails } from "../store/useEmployee";
 
 interface FormData {
   workingDays: string;
   reportedDays: string;
-  basic: string;
+  basic: string;         // Basic salary entered by admin when creating employee
+  payScale: string;      // Calculated based on reported days
   da: string;
   hra: string;
   specialPay: string;
@@ -58,19 +59,20 @@ const EmployeePayrollModal = ({
   const [formData, setFormData] = useState<FormData>({
     workingDays: "31",
     reportedDays: "31",
-    basic: "0",
+    basic: employee.baseSalary?.toString() || "0",  // Store the admin-entered baseSalary
+    payScale: "0",                                  // Calculated field
     da: "0",
     hra: "0",
-    specialPay: "0",
-    providentFund: "0",
-    professional: "0",
+    specialPay: employee.specialSalary?.toString() || "0",
+    providentFund: "1800",  // Default value as per requirement
+    professional: "200",    // Default value as per requirement
     advance: "0",
     tds: "0",
     grossEarning: "0",
     esic: "0",
     totalDeductions: "0",
     netPay: "0",
-    cpf: "0",
+    cpf: "1800",           // Default value same as providentFund
     esicContribution: "0",
     medicalContribution: "0",
   });
@@ -80,101 +82,90 @@ const EmployeePayrollModal = ({
       setFormData({
         workingDays: currentPayroll.workingDays || "31",
         reportedDays: currentPayroll.reportedDays || "31",
-        basic: currentPayroll.basic || "0",
+        basic: employee.baseSalary?.toString() || "0",  // Always use the base salary from employee
+        payScale: currentPayroll.payScale || "0",       // Use stored payScale if available
         da: currentPayroll.da || "0",
         hra: currentPayroll.hra || "0",
-        specialPay: currentPayroll.specialPay || "0",
-        providentFund: currentPayroll.providentFund || "0",
-        professional: currentPayroll.professional || "0",
+        specialPay: employee.specialSalary?.toString() || "0", // Use specialSalary from employee
+        providentFund: currentPayroll.providentFund || "1800",
+        professional: currentPayroll.professional || "200",
         advance: currentPayroll.advance || "0",
         tds: currentPayroll.tds || "0",
         grossEarning: currentPayroll.grossEarning || "0",
-        esic: (parseFloat(currentPayroll.grossEarning || "0") * 0.0075).toFixed(2),
+        esic: currentPayroll.esic || "0",
         totalDeductions: currentPayroll.totalDeductions || "0",
         netPay: currentPayroll.netPay || "0",
-        cpf: currentPayroll.cpf || "0",
+        cpf: currentPayroll.cpf || "1800",
         esicContribution: currentPayroll.esicContribution || "0",
         medicalContribution: currentPayroll.medicalContribution || "0",
       });
     } else if (employee) {
-      const workingDays = 31;
-      const reportedDays = 31;
-      const prorateFactor = reportedDays / workingDays;
-      const basic = Math.round((employee.baseSalary || 0) * prorateFactor);
-      const da = Math.round(basic * 0.25);
-      const hra = Math.round(basic * 0.20);
-      const specialPay = Math.round((employee.specialSalary || 0) * prorateFactor);
-      const grossEarning = basic + da + hra + specialPay;
-      const providentFund = Math.round(grossEarning * 0.0327);
-      const professional = 200;
-      const advance = 0;
-      const tds = 0;
-      const esic = Math.round(grossEarning * 0.0075);
-      const totalDeductions = providentFund + professional + advance + tds + esic;
-      const netPay = grossEarning - totalDeductions;
-      const cpf = Math.round(grossEarning * 0.12);
-      const esicContribution = Math.round(grossEarning * 0.0325);
-      const medicalContribution = Math.round(grossEarning * 0.02);
-
-      setFormData({
-        workingDays: workingDays.toString(),
-        reportedDays: reportedDays.toString(),
-        basic: basic.toString(),
-        da: da.toString(),
-        hra: hra.toString(),
-        specialPay: specialPay.toString(),
-        providentFund: providentFund.toString(),
-        professional: professional.toString(),
-        advance: advance.toString(),
-        tds: tds.toString(),
-        grossEarning: grossEarning.toString(),
-        esic: esic.toString(),
-        totalDeductions: totalDeductions.toString(),
-        netPay: netPay.toString(),
-        cpf: cpf.toString(),
-        esicContribution: esicContribution.toString(),
-        medicalContribution: medicalContribution.toString(),
-      });
+      // Initialize with default calculations
+      recalculatePayroll(employee);
     }
   }, [currentPayroll, employee]);
 
-  const handleInputChange = (field: keyof FormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const recalculate = () => {
+  const recalculatePayroll = (employee: any) => {
     const workingDays = parseFloat(formData.workingDays) || 31;
     const reportedDays = parseFloat(formData.reportedDays) || workingDays;
     const baseSalary = parseFloat(employee.baseSalary?.toString() || "0");
     const specialSalary = parseFloat(employee.specialSalary?.toString() || "0");
-    const prorateFactor = reportedDays / workingDays;
-    const basic = Math.round(baseSalary * prorateFactor);
-    const da = Math.round(basic * 0.25);
-    const hra = Math.round(basic * 0.20);
-    const specialPay = Math.round(specialSalary * prorateFactor);
-    const grossEarning = basic + da + hra + specialPay;
-    const providentFund = Math.round(grossEarning * 0.0327);
+    
+    // 1. Pay Scale calculation
+    const payScale = Math.round((reportedDays / workingDays) * baseSalary);
+    
+    // 2. DA calculation (25% of payScale)
+    const da = Math.round(payScale * 0.25);
+    
+    // 3. HRA calculation (20% of payScale)
+    const hra = Math.round(payScale * 0.2);
+    
+    // 4. Special Pay (use the value entered by admin)
+    const specialPay = specialSalary;
+    
+    // 5. Gross Earning = payScale + specialPay (NOT including DA and HRA)
+    const grossEarning = payScale + specialPay;
+    
+    // 6. Provident Fund (default 1800 unless changed)
+    const providentFund = parseFloat(formData.providentFund) || 1800;
+    
+    // 7. Professional Tax (default 200 unless changed)
     const professional = parseFloat(formData.professional) || 200;
-    const advance = parseFloat(formData.advance) || 0;
+    
+    // 8. TDS (use the value entered by admin)
     const tds = parseFloat(formData.tds) || 0;
+    
+    // 9. ESIC calculation (0.75% of grossEarning)
     const esic = Math.round(grossEarning * 0.0075);
-    const totalDeductions = providentFund + professional + advance + tds + esic;
+    
+    // 10. Total Deductions
+    const totalDeductions = providentFund + professional + tds + esic;
+    
+    // 11. Net Pay
     const netPay = grossEarning - totalDeductions;
-    const cpf = Math.round(grossEarning * 0.12);
+    
+    // 12. CPF (same as providentFund but rounded)
+    const cpf = Math.round(providentFund);
+    
+    // 13. ESIC Contribution (3.25% of grossEarning)
     const esicContribution = Math.round(grossEarning * 0.0325);
-    const medicalContribution = Math.round(grossEarning * 0.02);
+    
+    // 14. Medical Contribution (use the value entered by admin)
+    const medicalContribution = parseFloat(formData.medicalContribution) || 0;
 
     setFormData({
-      ...formData,
-      basic: basic.toString(),
+      workingDays: workingDays.toString(),
+      reportedDays: reportedDays.toString(),
+      basic: baseSalary.toString(), // Original base salary
+      payScale: payScale.toString(), // Calculated pay scale
       da: da.toString(),
       hra: hra.toString(),
       specialPay: specialPay.toString(),
-      grossEarning: grossEarning.toString(),
       providentFund: providentFund.toString(),
       professional: professional.toString(),
-      advance: advance.toString(),
+      advance: formData.advance,
       tds: tds.toString(),
+      grossEarning: grossEarning.toString(),
       esic: esic.toString(),
       totalDeductions: totalDeductions.toString(),
       netPay: netPay.toString(),
@@ -184,6 +175,14 @@ const EmployeePayrollModal = ({
     });
   };
 
+  const handleInputChange = (field: keyof FormData, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const recalculate = () => {
+    recalculatePayroll(employee);
+  };
+
   const handleSave = async () => {
     const payrollData: Omit<PayrollDetails, "createdAt"> = {
       employeeId,
@@ -191,6 +190,7 @@ const EmployeePayrollModal = ({
       workingDays: formData.workingDays,
       reportedDays: formData.reportedDays,
       basic: formData.basic,
+      payScale: formData.payScale,  // Add payScale to the database structure
       da: formData.da,
       hra: formData.hra,
       specialPay: formData.specialPay,
@@ -239,6 +239,10 @@ const EmployeePayrollModal = ({
               <Input value={employee.designation} readOnly />
             </div>
             <div>
+              <Label>Basic Salary</Label>
+              <Input value={formData.basic} readOnly />
+            </div>
+            <div>
               <Label>Working Days</Label>
               <Input
                 type="number"
@@ -255,11 +259,11 @@ const EmployeePayrollModal = ({
               />
             </div>
             <div>
-              <Label>Basic</Label>
+              <Label>Pay Scale</Label>
               <Input
                 type="number"
-                value={formData.basic}
-                onChange={(e) => handleInputChange("basic", e.target.value)}
+                value={formData.payScale}
+                readOnly  // Read-only since it's calculated
               />
             </div>
             <div>
@@ -267,7 +271,7 @@ const EmployeePayrollModal = ({
               <Input
                 type="number"
                 value={formData.da}
-                onChange={(e) => handleInputChange("da", e.target.value)}
+                readOnly  // Read-only since it's calculated
               />
             </div>
             <div>
@@ -275,7 +279,7 @@ const EmployeePayrollModal = ({
               <Input
                 type="number"
                 value={formData.hra}
-                onChange={(e) => handleInputChange("hra", e.target.value)}
+                readOnly  // Read-only since it's calculated
               />
             </div>
             <div>
@@ -283,7 +287,7 @@ const EmployeePayrollModal = ({
               <Input
                 type="number"
                 value={formData.specialPay}
-                onChange={(e) => handleInputChange("specialPay", e.target.value)}
+                readOnly  // Read-only since it comes from employee record
               />
             </div>
             <div>
@@ -323,7 +327,7 @@ const EmployeePayrollModal = ({
               <Input
                 type="number"
                 value={formData.grossEarning}
-                onChange={(e) => handleInputChange("grossEarning", e.target.value)}
+                readOnly  // Read-only since it's calculated
               />
             </div>
             <div>
@@ -331,7 +335,7 @@ const EmployeePayrollModal = ({
               <Input
                 type="number"
                 value={formData.esic}
-                onChange={(e) => handleInputChange("esic", e.target.value)}
+                readOnly  // Read-only since it's calculated
               />
             </div>
             <div>
@@ -339,7 +343,7 @@ const EmployeePayrollModal = ({
               <Input
                 type="number"
                 value={formData.totalDeductions}
-                onChange={(e) => handleInputChange("totalDeductions", e.target.value)}
+                readOnly  // Read-only since it's calculated
               />
             </div>
             <div>
@@ -347,7 +351,7 @@ const EmployeePayrollModal = ({
               <Input
                 type="number"
                 value={formData.netPay}
-                onChange={(e) => handleInputChange("netPay", e.target.value)}
+                readOnly  // Read-only since it's calculated
               />
             </div>
             <div>
@@ -355,7 +359,7 @@ const EmployeePayrollModal = ({
               <Input
                 type="number"
                 value={formData.cpf}
-                onChange={(e) => handleInputChange("cpf", e.target.value)}
+                readOnly  // Read-only since it's calculated
               />
             </div>
             <div>
@@ -363,7 +367,7 @@ const EmployeePayrollModal = ({
               <Input
                 type="number"
                 value={formData.esicContribution}
-                onChange={(e) => handleInputChange("esicContribution", e.target.value)}
+                readOnly  // Read-only since it's calculated
               />
             </div>
             <div>
