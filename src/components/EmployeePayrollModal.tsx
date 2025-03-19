@@ -336,7 +336,7 @@ const EmployeePayrollModal = ({
               <Input
                 type="number"
                 value={formData.esic}
-                readOnly  // Read-only since it's calculated
+                
               />
             </div>
             <div>
@@ -368,7 +368,6 @@ const EmployeePayrollModal = ({
               <Input
                 type="number"
                 value={formData.esicContribution}
-                readOnly  // Read-only since it's calculated
               />
             </div>
             <div>
