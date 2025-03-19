@@ -233,7 +233,7 @@ const EmployeePayrollModal = ({
             </div>
             <div>
               <Label>ESIC</Label>
-              <Input value={employee.esicNumber || ""}  />
+              <Input value={employee.esicNumber || ""}    />
             </div>
             <div>
               <Label>Designation</Label>
@@ -336,7 +336,9 @@ const EmployeePayrollModal = ({
               <Input
                 type="number"
                 value={formData.esic}
-                readOnly  // Read-only since it's calculated
+                onChange={(e) => handleInputChange("esic", e.target.value)}
+
+                  // Read-only since it's calculated
               />
             </div>
             <div>
@@ -368,6 +370,7 @@ const EmployeePayrollModal = ({
               <Input
                 type="number"
                 value={formData.esicContribution}
+                onChange={(e) => handleInputChange("esicContribution", e.target.value)}
                   // Read-only since it's calculated
               />
             </div>
