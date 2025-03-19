@@ -127,7 +127,7 @@ const EmployeePayrollModal = ({
     const grossEarning = payScale + specialPay;
     
     // 6. Provident Fund (default 1800 unless changed)
-    const providentFund = parseFloat(formData.providentFund) || 1800;
+    const providentFund = Math.round((payScale + da) * 0.25);
     
     // 7. Professional Tax (default 200 unless changed)
     const professional = parseFloat(formData.professional) || 200;
@@ -190,15 +190,15 @@ const EmployeePayrollModal = ({
       workingDays: formData.workingDays,
       reportedDays: formData.reportedDays,
       basic: formData.basic,
-      payScale: formData.payScale,  // Add payScale to the database structure
+      payScale: formData.payScale,  
       da: formData.da,
-      esic: formData.esic,
       hra: formData.hra,
       specialPay: formData.specialPay,
       grossEarning: formData.grossEarning,
       providentFund: formData.providentFund,
       professional: formData.professional,
       advance: formData.advance,
+      esic: formData.esic,
       tds: formData.tds,
       totalDeductions: formData.totalDeductions,
       netPay: formData.netPay,
@@ -368,7 +368,7 @@ const EmployeePayrollModal = ({
               <Input
                 type="number"
                 value={formData.esicContribution}
-                  // Read-only since it's calculated
+                readOnly  // Read-only since it's calculated
               />
             </div>
             <div>
