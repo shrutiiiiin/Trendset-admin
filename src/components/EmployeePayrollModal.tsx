@@ -192,6 +192,7 @@ const EmployeePayrollModal = ({
       basic: formData.basic,
       payScale: formData.payScale,  // Add payScale to the database structure
       da: formData.da,
+      esic: formData.esic,
       hra: formData.hra,
       specialPay: formData.specialPay,
       grossEarning: formData.grossEarning,
