@@ -45,7 +45,9 @@ export const calculatePayroll = (row: PayrollData) => {
   const specialSalary = parseFloat(row.specialPay) || 0;
   
   // Calculate payScale based on reported days
-  const payScale = Math.round((reportedDays / workingDays) * baseSalary);
+  const payScale = reportedDays === 0 
+  ? baseSalary  // If no reported days, use the base salary
+  : Math.round((reportedDays / workingDays) * baseSalary);
   
   // DA calculation (25% of payScale)
   const da = Math.round(payScale * 0.25);
@@ -195,7 +197,7 @@ const PayrollTable = () => {
           workingDays: daysInMonth.toString(),
           reportedDays: '0',
           basic: emp.baseSalary?.toString() || '0',
-          payScale: '0',  // Initialize payScale
+          payScale: emp.baseSalary?.toString() || '0', // Initialize payScale
           da: '0',
           hra: '0',
           specialPay: emp.specialSalary?.toString() || '0',
