@@ -228,56 +228,56 @@ const PayrollTable = () => {
   }, [employees, payrolls, currentMonth]);
 
   // Calculate attendance from daily data
-  const calculateAttendanceForEmployee = async (employeeId: string, month: string) => {
-    try {
-      const attendanceDays = await fetchDailyAttendanceData(employeeId, month);
-      return attendanceDays;
-    } catch (error) {
-      console.error('Error fetching attendance data:', error);
-      return null;
-    }
-  };
+  // const calculateAttendanceForEmployee = async (employeeId: string, month: string) => {
+  //   try {
+  //     const attendanceDays = await fetchDailyAttendanceData(employeeId, month);
+  //     return attendanceDays;
+  //   } catch (error) {
+  //     console.error('Error fetching attendance data:', error);
+  //     return null;
+  //   }
+  // };
 
   
-  const fetchDailyAttendanceData = async (employeeId: string, month: string) => {
-    const [monthNum, year] = month.split('-');
-    const daysInMonth = getDaysInMonth(month);
+  // const fetchDailyAttendanceData = async (employeeId: string, month: string) => {
+  //   const [monthNum, year] = month.split('-');
+  //   const daysInMonth = getDaysInMonth(month);
     
-    let presentDays = 0;
+  //   let presentDays = 0;
     
-    // Create a date range for the month - starting with first day
-    const startDate = `01-${monthNum}-${year}`;
-    // Format the last day with leading zero if necessary
-    const lastDay = daysInMonth.toString().padStart(2, '0');
-    const endDate = `${lastDay}-${monthNum}-${year}`;
+  //   // Create a date range for the month - starting with first day
+  //   const startDate = `01-${monthNum}-${year}`;
+  //   // Format the last day with leading zero if necessary
+  //   const lastDay = daysInMonth.toString().padStart(2, '0');
+  //   const endDate = `${lastDay}-${monthNum}-${year}`;
     
-    // Query Firestore for daily attendance records
-    const dailyDataRef = collection(db, 'employees', employeeId, 'daily_data');
+  //   // Query Firestore for daily attendance records
+  //   const dailyDataRef = collection(db, 'employees', employeeId, 'daily_data');
     
-    try {
-      // Use compound query to get all records for the month date range
-      const q = query(
-        dailyDataRef,
-        where('date', '>=', startDate),
-        where('date', '<=', endDate)
-      );
+  //   try {
+  //     // Use compound query to get all records for the month date range
+  //     const q = query(
+  //       dailyDataRef,
+  //       where('date', '>=', startDate),
+  //       where('date', '<=', endDate)
+  //     );
       
-      const querySnapshot = await getDocs(q);
+  //     const querySnapshot = await getDocs(q);
       
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.status === 'present') {
-          presentDays++;
-        }
-      });
+  //     querySnapshot.forEach((doc) => {
+  //       const data = doc.data();
+  //       if (data.status === 'present') {
+  //         presentDays++;
+  //       }
+  //     });
       
-      console.log(`Employee ${employeeId} has ${presentDays} present days in ${month}`);
-      return presentDays;
-    } catch (error) {
-      console.error(`Error fetching attendance for employee ${employeeId}:`, error);
-      throw error;
-    }
-  };
+  //     console.log(`Employee ${employeeId} has ${presentDays} present days in ${month}`);
+  //     return presentDays;
+  //   } catch (error) {
+  //     console.error(`Error fetching attendance for employee ${employeeId}:`, error);
+  //     throw error;
+  //   }
+  // };
 
   const deleteCurrentMonthData = async () => {
     if (!confirm(`Are you sure you want to delete ALL data for ${formatMonthForDisplay(currentMonth)}? This will remove both payroll and attendance records for this month.`)) {
