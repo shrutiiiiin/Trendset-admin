@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Download, ChevronLeft, ChevronRight } from 'lucide-react';
-import useEmployeeStore, { EmployeeDetails, PayrollCalculationInput, PayrollDetails,  } from '../store/useEmployee';
+import useEmployeeStore, { EmployeeDetails, PayrollDetails,  } from '../store/useEmployee';
 import * as XLSX from 'xlsx';
 import {
   Table,
@@ -38,7 +38,7 @@ export interface PayrollData extends EmployeeDetails {
   medicalContribution: string;
 }
 
-export const calculatePayroll = (row: PayrollCalculationInput) => {
+export const calculatePayroll = (row: PayrollData) => {
   const workingDays = parseFloat(row.workingDays) || 31;
   const reportedDays = parseFloat(row.reportedDays) || 0;
   const baseSalary = parseFloat(row.basic) || 0;
@@ -49,14 +49,15 @@ export const calculatePayroll = (row: PayrollCalculationInput) => {
   ? baseSalary  // If no reported days, use the base salary
   : Math.round((reportedDays / workingDays) * baseSalary);
   
-  // DA calculation (25% of payScale)
+  
   const da = Math.round(payScale * 0.25);
   
   // HRA calculation (20% of payScale)
   const hra = Math.round(payScale * 0.2);
   
   // Gross Earning = payScale + specialPay
-  const grossEarning = payScale + specialSalary;
+  const grossEarning = payScale + specialSalary + da + hra;
+  
   
   // Provident Fund - default to 1800 if not set
   const providentFund = parseFloat(row.providentFund) || 1800;
@@ -158,126 +159,137 @@ const PayrollTable = () => {
   }, [fetchEmployees, deleteOldPayrolls]);
 
   useEffect(() => {
-    if (employees.length > 0) {
-      fetchPayrollsForMonth(currentMonth);
-    }
-  }, [currentMonth, fetchPayrollsForMonth, employees]);
+    fetchPayrollsForMonth(currentMonth);
+  }, [currentMonth, fetchPayrollsForMonth]);
 
   useEffect(() => {
-    const transformedData: PayrollData[] = employees.map((emp) => {
-      const payrollForMonth = payrolls.find(
-        (p) => p.employeeId === emp.id && p.month === currentMonth
-      );
+    const loadPayrollData = async () => {
+      const transformedData: PayrollData[] = [];
       
-      if (payrollForMonth) {
-        return {
-          ...emp,
-          workingDays: payrollForMonth.workingDays,
-          reportedDays: payrollForMonth.reportedDays,
-          basic: emp.baseSalary?.toString() || '0',  // Always use employee's base salary
-          payScale: payrollForMonth.payScale || '0',  // Include payScale from payroll
-          da: payrollForMonth.da,
-          hra: payrollForMonth.hra,
-          specialPay: emp.specialSalary?.toString() || '0', // Always use employee's special salary
-          grossEarning: payrollForMonth.grossEarning,
-          providentFund: payrollForMonth.providentFund,
-          professional: payrollForMonth.professional,
-          advance: payrollForMonth.advance,
-          tds: payrollForMonth.tds,
-          esic: payrollForMonth.esic || '0',  // Include esic from payroll
-          totalDeductions: payrollForMonth.totalDeductions,
-          netPay: payrollForMonth.netPay,
-          cpf: payrollForMonth.cpf,
-          esicContribution: payrollForMonth.esicContribution,
-          medicalContribution: payrollForMonth.medicalContribution,
-        };
-      } else {
-        // Use default values and calculate payroll
-        const daysInMonth = getDaysInMonth(currentMonth);
-        const defaultData = {
-          ...emp,
-          workingDays: daysInMonth.toString(),
-          reportedDays: '0',
-          basic: emp.baseSalary?.toString() || '0',
-          payScale: emp.baseSalary?.toString() || '0', // Initialize payScale
-          da: '0',
-          hra: '0',
-          specialPay: emp.specialSalary?.toString() || '0',
-          grossEarning: '0',
-          providentFund: '1800',  // Default value
-          professional: '200',
-          advance: '0',
-          tds: '0',
-          esic: '0',
-          totalDeductions: '0',
-          netPay: '0',
-          cpf: '1800',
-          esicContribution: '0',
-          medicalContribution: '0',
-        };
+      for (const emp of employees) {
+        const payrollForMonth = payrolls.find(
+          (p) => p.employeeId === emp.id && p.month === currentMonth
+        );
         
-        const calculations = calculatePayroll(defaultData);
-        return {
-          ...defaultData,
-          ...calculations,
-        };
+        if (payrollForMonth) {
+          transformedData.push({
+            ...emp,
+            workingDays: payrollForMonth.workingDays,
+            reportedDays: payrollForMonth.reportedDays,
+            basic: emp.baseSalary?.toString() || '0',  
+            payScale: payrollForMonth.payScale || '0', 
+            da: payrollForMonth.da,
+            hra: payrollForMonth.hra,
+            specialPay: emp.specialSalary?.toString() || '0', 
+            grossEarning: payrollForMonth.grossEarning,
+            providentFund: payrollForMonth.providentFund,
+            professional: payrollForMonth.professional,
+            advance: payrollForMonth.advance,
+            tds: payrollForMonth.tds,
+            esic: payrollForMonth.esic || '0',
+            totalDeductions: payrollForMonth.totalDeductions,
+            netPay: payrollForMonth.netPay,
+            cpf: payrollForMonth.cpf,
+            esicContribution: payrollForMonth.esicContribution,
+            medicalContribution: payrollForMonth.medicalContribution,
+          });
+        } else {
+          // For new entries, calculate attendance first
+          let attendanceDays = 0;
+          try {
+            attendanceDays = await calculateAttendanceForEmployee(emp.id, currentMonth) || 0;
+          } catch (error) {
+            console.error(`Error calculating attendance for ${emp.id}:`, error);
+          }
+          
+          const daysInMonth = getDaysInMonth(currentMonth);
+          const defaultData = {
+            ...emp,
+            workingDays: daysInMonth.toString(),
+            reportedDays: attendanceDays.toString(), // Use calculated attendance
+            basic: emp.baseSalary?.toString() || '0',
+            payScale: '0', // This will be calculated properly based on attendance
+            da: '0',
+            hra: '0',
+            specialPay: emp.specialSalary?.toString() || '0',
+            grossEarning: '0',
+            providentFund: '1800',
+            professional: '200',
+            advance: '0',
+            tds: '0',
+            esic: '0',
+            totalDeductions: '0',
+            netPay: '0',
+            cpf: '1800',
+            esicContribution: '0',
+            medicalContribution: '0',
+          };
+          
+          const calculations = calculatePayroll(defaultData);
+          transformedData.push({
+            ...defaultData,
+            ...calculations,
+          });
+        }
       }
-    });
+      
+      setEditableData(transformedData);
+    };
     
-    setEditableData(transformedData);
+    loadPayrollData();
   }, [employees, payrolls, currentMonth]);
 
   // Calculate attendance from daily data
-  // const calculateAttendanceForEmployee = async (employeeId: string, month: string) => {
-  //   try {
-  //     const attendanceDays = await fetchDailyAttendanceData(employeeId, month);
-  //     return attendanceDays;
-  //   } catch (error) {
-  //     console.error('Error fetching attendance data:', error);
-  //     return null;
-  //   }
-  // };
+  const calculateAttendanceForEmployee = async (employeeId: string, month: string) => {
+    try {
+      const attendanceDays = await fetchDailyAttendanceData(employeeId, month);
+      return attendanceDays;
+    } catch (error) {
+      console.error('Error fetching attendance data:', error);
+      return null;
+    }
+  };
 
   
-  // const fetchDailyAttendanceData = async (employeeId: string, month: string) => {
-  //   const [monthNum, year] = month.split('-');
-  //   const daysInMonth = getDaysInMonth(month);
+  const fetchDailyAttendanceData = async (employeeId: string, month: string) => {
+    const [monthNum, year] = month.split('-');
+    const daysInMonth = getDaysInMonth(month);
     
-  //   let presentDays = 0;
+    let presentDays = 0;
     
-  //   // Create a date range for the month - starting with first day
-  //   const startDate = `01-${monthNum}-${year}`;
-  //   // Format the last day with leading zero if necessary
-  //   const lastDay = daysInMonth.toString().padStart(2, '0');
-  //   const endDate = `${lastDay}-${monthNum}-${year}`;
+    // Create a date range for the month - starting with first day
+    const startDate = `01-${monthNum}-${year}`;
+    // Format the last day with leading zero if necessary
+    const lastDay = daysInMonth.toString().padStart(2, '0');
+    const endDate = `${lastDay}-${monthNum}-${year}`;
     
-  //   // Query Firestore for daily attendance records
-  //   const dailyDataRef = collection(db, 'employees', employeeId, 'daily_data');
+    // Query Firestore for daily attendance records
+    const dailyDataRef = collection(db, 'employees', employeeId, 'daily_data');
     
-  //   try {
-  //     // Use compound query to get all records for the month date range
-  //     const q = query(
-  //       dailyDataRef,
-  //       where('date', '>=', startDate),
-  //       where('date', '<=', endDate)
-  //     );
+    try {
+      // Use compound query to get all records for the month date range
+      const q = query(
+        dailyDataRef,
+        where('date', '>=', startDate),
+        where('date', '<=', endDate)
+      );
       
-  //     const querySnapshot = await getDocs(q);
+      const querySnapshot = await getDocs(q);
       
-  //     querySnapshot.forEach((doc) => {
-  //       const data = doc.data();
-  //       if (data.status === 'present') {
-  //         presentDays++;
-  //       }
-  //     });
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.status === 'present') {
+          presentDays++;
+        }
+      });
       
-  //     console.log(`Employee ${employeeId} has ${presentDays} present days in ${month}`);
-  //     return presentDays;
-  //   } catch (error) {
-  //     console.error(`Error fetching attendance for employee ${employeeId}:`, error);
-  //     throw error;
-  //   }
-  // };
+      console.log(`Employee ${employeeId} has ${presentDays} present days in ${month}`);
+      return presentDays;
+    } catch (error) {
+      console.error(`Error fetching attendance for employee ${employeeId}:`, error);
+      throw error;
+    }
+  };
 
   const deleteCurrentMonthData = async () => {
     if (!confirm(`Are you sure you want to delete ALL data for ${formatMonthForDisplay(currentMonth)}? This will remove both payroll and attendance records for this month.`)) {
@@ -499,7 +511,7 @@ const PayrollTable = () => {
         workingDays: employee.workingDays,
         reportedDays: employee.reportedDays,
         basic: employee.basic,
-        payScale: calculations.payScale, // Include payScale
+        payScale: calculations.payScale, 
         da: calculations.da,
         hra: calculations.hra,
         specialPay: calculations.specialPay,
@@ -507,7 +519,7 @@ const PayrollTable = () => {
         providentFund: calculations.providentFund,
         professional: calculations.professional,
         advance: employee.advance,
-        esic: calculations.esic, // Include esic
+        esic: calculations.esic, 
         tds: employee.tds,
         totalDeductions: calculations.totalDeductions,
         netPay: calculations.netPay,

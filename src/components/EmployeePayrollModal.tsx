@@ -107,10 +107,11 @@ const EmployeePayrollModal = ({
 
   const recalculatePayroll = (employee: any) => {
     const workingDays = parseFloat(formData.workingDays) || 31;
-    let reportedDays = parseFloat(formData.reportedDays) || 0;
-    if (reportedDays === 0) {
-      reportedDays = workingDays;
-    }
+    // let reportedDays = parseFloat(formData.reportedDays) || 0;
+    // if (reportedDays === 0) {
+    //   reportedDays = workingDays;
+    // }
+    const reportedDays = parseFloat(formData.reportedDays) || 0;
     const baseSalary = parseFloat(employee.baseSalary?.toString() || "0");
     const specialSalary = parseFloat(employee.specialSalary?.toString() || "0");
     
@@ -126,8 +127,7 @@ const EmployeePayrollModal = ({
     // 4. Special Pay (use the value entered by admin)
     const specialPay = specialSalary;
     
-    // 5. Gross Earning = payScale + specialPay (NOT including DA and HRA)
-    const grossEarning = payScale + specialPay+ da+hra;
+    const grossEarning = payScale+ da+hra+ specialPay;
     
     // 6. Provident Fund (default 1800 unless changed)
     const providentFund = Math.round((payScale + da) * 0.25);
