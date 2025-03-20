@@ -141,9 +141,8 @@ const EmployeePayrollModal = ({
     // 9. ESIC calculation (0.75% of grossEarning)
     const esic = Math.round(grossEarning * 0.0075);
     const advance = parseFloat(formData.advance) || 0;
-    // 10. Total Deductions
-    // const totalDeductions = providentFund + professional + tds + esic;
-    const totalDeductions = providentFund +  esic + professional + advance + tds + esic;
+  
+    const totalDeductions = providentFund  + professional + advance + tds + esic;
     
     // 11. Net Pay
     const netPay = grossEarning - totalDeductions;

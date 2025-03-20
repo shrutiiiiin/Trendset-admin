@@ -60,7 +60,7 @@ export const calculatePayroll = (row: PayrollData) => {
   
   
   // Provident Fund - default to 1800 if not set
-  const providentFund = parseFloat(row.providentFund) || 1800;
+  const providentFund = Math.round((payScale + da) * 0.25);
   
   // Professional Tax - default to 200
   const professional = 200;
