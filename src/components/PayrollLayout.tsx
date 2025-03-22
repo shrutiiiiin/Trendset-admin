@@ -487,9 +487,100 @@ const PayrollTable = () => {
   };
 
   const exportToExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(editableData);
+    // Define headers for the Excel sheet
+    const headers = [
+      "Employee ID",
+      "Name",
+      "Designation",
+      "Working Days",
+      "Reported Days",
+      "Basic Pay",
+      "Pay Scale",
+      "DA",
+      "HRA",
+      "Special Pay",
+      "Gross Earning",
+      "Provident Fund",
+      "Professional Tax",
+      "Advance",
+      "TDS",
+      "ESIC 0.75",
+      "Total Deductions",
+      "Net Pay",
+      "CPF",
+      "ESIC Contribution",
+      "Medical Contribution",
+    ];
+  
+    // Transform editableData into an array of arrays with formulas
+    const data = editableData.map((row, index) => {
+      const rowNum = index + 2; // Row number starts at 2 (after headers)
+      return [
+        row.employeeId, // A
+        row.name,       // B
+        row.designation,// C
+        row.workingDays,// D
+        row.reportedDays,// E
+        row.basic,      // F
+        // Pay Scale: =IF(E{row}=0,F{row},ROUND((E{row}/D{row})*F{row},0))
+        { f: `=IF(E${rowNum}=0,F${rowNum},ROUND((E${rowNum}/D${rowNum})*F${rowNum},0))` }, // G
+        // DA: =ROUND(G{row}*0.25,0)
+        { f: `=ROUND(G${rowNum}*0.25,0)` }, // H
+        // HRA: =ROUND(G{row}*0.2,0)
+        { f: `=ROUND(G${rowNum}*0.2,0)` }, // I
+        row.specialPay, // J
+        // Gross Earning: =G{row}+J{row}+H{row}+I{row}
+        { f: `=G${rowNum}+J${rowNum}+H${rowNum}+I${rowNum}` }, // K
+        row.providentFund || "1800", // L
+        row.professional || "200",   // M
+        row.advance || "0",          // N
+        row.tds || "0",              // O
+        // ESIC: =ROUND(K{row}*0.0075,0)
+        { f: `=ROUND(K${rowNum}*0.0075,0)` }, // P
+        // Total Deductions: =SUM(L{row}:P{row})
+        { f: `=SUM(L${rowNum}:P${rowNum})` }, // Q
+        // Net Pay: =K{row}-Q{row}
+        { f: `=K${rowNum}-Q${rowNum}` }, // R
+        row.cpf || "1800", // S (CPF same as PF by default)
+        // ESIC Contribution: =ROUND(K{row}*0.0325,0)
+        { f: `=ROUND(K${rowNum}*0.0325,0)` }, // T
+        row.medicalContribution || "0", // U
+      ];
+    });
+  
+    // Create worksheet from array of arrays
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+  
+    // Optional: Set column widths for better readability
+    ws['!cols'] = [
+      { wch: 15 }, // A: Employee ID
+      { wch: 20 }, // B: Name
+      { wch: 20 }, // C: Designation
+      { wch: 12 }, // D: Working Days
+      { wch: 12 }, // E: Reported Days
+      { wch: 12 }, // F: Basic
+      { wch: 12 }, // G: Pay Scale
+      { wch: 12 }, // H: DA
+      { wch: 12 }, // I: HRA
+      { wch: 12 }, // J: Special Pay
+      { wch: 15 }, // K: Gross Earning
+      { wch: 15 }, // L: Provident Fund
+      { wch: 15 }, // M: Professional Tax
+      { wch: 12 }, // N: Advance
+      { wch: 12 }, // O: TDS
+      { wch: 12 }, // P: ESIC
+      { wch: 15 }, // Q: Total Deductions
+      { wch: 15 }, // R: Net Pay
+      { wch: 12 }, // S: CPF
+      { wch: 15 }, // T: ESIC Contribution
+      { wch: 15 }, // U: Medical Contribution
+    ];
+  
+    // Create workbook and append sheet
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Payroll");
+  
+    // Export the file
     XLSX.writeFile(wb, `Payroll_${currentMonth}.xlsx`);
   };
 
