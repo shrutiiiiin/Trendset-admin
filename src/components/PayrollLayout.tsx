@@ -70,7 +70,7 @@ export const calculatePayroll = (row: PayrollCalculationInput) => {
   const tds = parseFloat(row.tds) || 0;
   
   // ESIC calculation (0.75% of grossEarning)
-  const esic = parseFloat(row.esic)|| Math.round(grossEarning * 0.0075);
+  const esic = parseFloat(row.esic);
   
   // Total Deductions
   const totalDeductions = providentFund + professional + advance + tds + esic;
@@ -82,7 +82,7 @@ export const calculatePayroll = (row: PayrollCalculationInput) => {
   const cpf = providentFund;
   
   // ESIC Contribution (3.25% of grossEarning)
-  const esicContribution =parseFloat(row.esicContribution)|| Math.round(grossEarning * 0.0325);
+  const esicContribution =parseFloat(row.esicContribution);
   
   // Medical Contribution - from row or default to 0
   const medicalContribution = parseFloat(row.medicalContribution) || 0;
