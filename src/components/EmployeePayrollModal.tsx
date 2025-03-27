@@ -275,7 +275,8 @@ const EmployeePayrollModal = ({
               <Input
                 type="number"
                 value={formData.da}
-                readOnly  // Read-only since it's calculated
+                onChange={(e) => handleInputChange("da", e.target.value)}
+               // Read-only since it's calculated
               />
             </div>
             <div>
@@ -283,7 +284,8 @@ const EmployeePayrollModal = ({
               <Input
                 type="number"
                 value={formData.hra}
-                readOnly  // Read-only since it's calculated
+                onChange={(e) => handleInputChange("hra", e.target.value)}
+                  // Read-only since it's calculated
               />
             </div>
             <div>

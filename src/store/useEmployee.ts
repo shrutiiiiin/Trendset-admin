@@ -35,6 +35,11 @@ export interface PayrollCalculationInput {
   tds: string;
   providentFund: string;
   medicalContribution: string;
+  professional:string;
+  da:string;
+  hra:string;
+  esic:string;
+  esicContribution:string;
 }
 
 export interface EmployeeDetails {
@@ -261,7 +266,14 @@ const useEmployeeStore = create<EmployeeStore>((set, get) => ({
           advance: payroll.advance,
           tds: payroll.tds,
           providentFund: payroll.providentFund,
-          medicalContribution: payroll.medicalContribution
+          medicalContribution: payroll.medicalContribution,
+          professional: payroll.professional,
+          hra: payroll.hra,
+          da: payroll.da,
+          esic: payroll.esic,
+          esicContribution:payroll.esicContribution
+
+
         };
         
         // Recalculate payroll based on new attendance and salary information
@@ -271,7 +283,7 @@ const useEmployeeStore = create<EmployeeStore>((set, get) => ({
         // Create the updated payroll object
         const updatedPayroll = {
           ...payroll,
-          reportedDays: attendanceDays.toString(),
+          reportedDays: attendanceDays.toString(),  
           ...calculations
         };
         
@@ -456,7 +468,8 @@ const useEmployeeStore = create<EmployeeStore>((set, get) => ({
   updatePayroll: async (employeeId: string, payrollData: Omit<PayrollDetails, 'createdAt'>) => {
     set({ loading: true, error: null });
     try {
-      const { month } = payrollData;
+      const  month  = payrollData.month;
+      console.log('month',month);
 
       if (!month) {
         throw new Error('Month is required for payroll data');

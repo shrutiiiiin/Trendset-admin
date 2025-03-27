@@ -51,10 +51,10 @@ export const calculatePayroll = (row: PayrollCalculationInput) => {
   : Math.round((reportedDays / workingDays) * baseSalary);
   
   // DA calculation (25% of payScale)
-  const da = Math.round(payScale * 0.25);
+  const da =  parseFloat(row.da)|| Math.round(payScale * 0.25);
   
   // HRA calculation (20% of payScale)
-  const hra = Math.round(payScale * 0.2);
+  const hra =  parseFloat(row.hra)|| Math.round(payScale * 0.2);
   
   // Gross Earning = payScale + specialPay
   const grossEarning = payScale + specialSalary + da + hra;
@@ -63,14 +63,14 @@ export const calculatePayroll = (row: PayrollCalculationInput) => {
   const providentFund = parseFloat(row.providentFund) || 1800;
   
   // Professional Tax - default to 200
-  const professional = 200;
+  const professional = parseFloat(row.professional) ;
   
   // Advance and TDS from row
   const advance = parseFloat(row.advance) || 0;
   const tds = parseFloat(row.tds) || 0;
   
   // ESIC calculation (0.75% of grossEarning)
-  const esic = Math.round(grossEarning * 0.0075);
+  const esic = parseFloat(row.esic)|| Math.round(grossEarning * 0.0075);
   
   // Total Deductions
   const totalDeductions = providentFund + professional + advance + tds + esic;
@@ -82,7 +82,7 @@ export const calculatePayroll = (row: PayrollCalculationInput) => {
   const cpf = providentFund;
   
   // ESIC Contribution (3.25% of grossEarning)
-  const esicContribution = Math.round(grossEarning * 0.0325);
+  const esicContribution =parseFloat(row.esicContribution)|| Math.round(grossEarning * 0.0325);
   
   // Medical Contribution - from row or default to 0
   const medicalContribution = parseFloat(row.medicalContribution) || 0;
@@ -396,95 +396,95 @@ const PayrollTable = () => {
     }
   };
 
-  const updateAttendanceForAll = async () => {
-    setIsLoading(true);
-    const updatedData = [...editableData];
+  // const updateAttendanceForAll = async () => {
+  //   setIsLoading(true);
+  //   const updatedData = [...editableData];
     
-    try {
-      for (let i = 0; i < employees.length; i++) {
-        const emp = employees[i];
+  //   try {
+  //     for (let i = 0; i < employees.length; i++) {
+  //       const emp = employees[i];
         
-        // Parse the month and year from currentMonth (format: "MM-yyyy")
-        const [monthStr, yearStr] = currentMonth.split('-');
+  //       // Parse the month and year from currentMonth (format: "MM-yyyy")
+  //       const [monthStr, yearStr] = currentMonth.split('-');
         
-        // Get all documents in the daily_data collection for this employee
-        const dailyDataRef = collection(db, 'employees', emp.id, 'daily_data');
-        const querySnapshot = await getDocs(dailyDataRef);
+  //       // Get all documents in the daily_data collection for this employee
+  //       const dailyDataRef = collection(db, 'employees', emp.id, 'daily_data');
+  //       const querySnapshot = await getDocs(dailyDataRef);
         
-        // Count documents that match the current month
-        let attendanceDays = 0;
+  //       // Count documents that match the current month
+  //       let attendanceDays = 0;
         
-        querySnapshot.forEach((doc) => {
-          // Document ID is in format "DD-MM-YYYY"
-          const docId = doc.id;
-          const dateParts = docId.split('-');
+  //       querySnapshot.forEach((doc) => {
+  //         // Document ID is in format "DD-MM-YYYY"
+  //         const docId = doc.id;
+  //         const dateParts = docId.split('-');
           
-          // Check if it's a valid date format
-          if (dateParts.length === 3) {
-            const docMonth = dateParts[1]; // Month part (MM)
-            const docYear = dateParts[2];  // Year part (YYYY)
+  //         // Check if it's a valid date format
+  //         if (dateParts.length === 3) {
+  //           const docMonth = dateParts[1]; // Month part (MM)
+  //           const docYear = dateParts[2];  // Year part (YYYY)
             
-            // If the document is for the current month/year
-            if (docMonth === monthStr && docYear === yearStr) {
-              attendanceDays++;
-            }
-          }
-        });
+  //           // If the document is for the current month/year
+  //           if (docMonth === monthStr && docYear === yearStr) {
+  //             attendanceDays++;
+  //           }
+  //         }
+  //       });
         
-        console.log(`Employee ${emp.id} has ${attendanceDays} present days in ${monthStr}-${yearStr}`);
+  //       console.log(`Employee ${emp.id} has ${attendanceDays} present days in ${monthStr}-${yearStr}`);
         
-        updatedData[i] = {
-          ...updatedData[i],
-          reportedDays: attendanceDays.toString(),
-        };
+  //       updatedData[i] = {
+  //         ...updatedData[i],
+  //         reportedDays: attendanceDays.toString(),
+  //       };
         
-        // Recalculate payroll based on new attendance
-        const calculations = calculatePayroll(updatedData[i]);
-        updatedData[i] = {
-          ...updatedData[i],
-          ...calculations,
-        };
-      }
+  //       // Recalculate payroll based on new attendance
+  //       const calculations = calculatePayroll(updatedData[i]);
+  //       updatedData[i] = {
+  //         ...updatedData[i],
+  //         ...calculations,
+  //       };
+  //     }
       
-      setEditableData(updatedData);
+  //     setEditableData(updatedData);
       
-      // Save the updated data
-      const savePromises = updatedData.map(async (employee) => {
-        const calculations = calculatePayroll(employee);
-        const payrollData: Omit<PayrollDetails, 'createdAt'> = {
-          employeeId: employee.id,
-          month: currentMonth,
-          workingDays: employee.workingDays,
-          reportedDays: employee.reportedDays,
-          basic: employee.basic,
-          payScale: calculations.payScale, // Include payScale
-          da: calculations.da,
-          hra: calculations.hra,
-          specialPay: calculations.specialPay,
-          grossEarning: calculations.grossEarning,
-          providentFund: calculations.providentFund,
-          professional: calculations.professional,
-          advance: employee.advance,
-          esic: calculations.esic, // Include esic
-          tds: employee.tds,
-          totalDeductions: calculations.totalDeductions,
-          netPay: calculations.netPay,
-          cpf: calculations.cpf,
-          esicContribution: calculations.esicContribution,
-          medicalContribution: calculations.medicalContribution,
-        };
-        return updatePayroll(employee.id, payrollData);
-      });
+  //     // Save the updated data
+  //     const savePromises = updatedData.map(async (employee) => {
+  //       const calculations = calculatePayroll(employee);
+  //       const payrollData: Omit<PayrollDetails, 'createdAt'> = {
+  //         employeeId: employee.id,
+  //         month: currentMonth,
+  //         workingDays: employee.workingDays,
+  //         reportedDays: employee.reportedDays,
+  //         basic: employee.basic,
+  //         payScale: calculations.payScale, // Include payScale
+  //         da: calculations.da,
+  //         hra: calculations.hra,
+  //         specialPay: calculations.specialPay,
+  //         grossEarning: calculations.grossEarning,
+  //         providentFund: calculations.providentFund,
+  //         professional: calculations.professional,
+  //         advance: employee.advance,
+  //         esic: calculations.esic, // Include esic
+  //         tds: employee.tds,
+  //         totalDeductions: calculations.totalDeductions,
+  //         netPay: calculations.netPay,
+  //         cpf: calculations.cpf,
+  //         esicContribution: calculations.esicContribution,
+  //         medicalContribution: calculations.medicalContribution,
+  //       };
+  //       return updatePayroll(employee.id, payrollData);
+  //     });
       
-      await Promise.all(savePromises);
-      alert('Attendance data updated and saved successfully!');
-    } catch (error) {
-      console.error('Error updating attendance data:', error);
-      alert('Failed to update some attendance data. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  //     await Promise.all(savePromises);
+  //     alert('Attendance data updated and saved successfully!');
+  //   } catch (error) {
+  //     console.error('Error updating attendance data:', error);
+  //     alert('Failed to update some attendance data. Please try again.');
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
   const exportToExcel = () => {
     // Define headers for the Excel sheet
@@ -705,14 +705,14 @@ const PayrollTable = () => {
               </Button>
             </div>
             
-            <Button 
+            {/* <Button 
               onClick={updateAttendanceForAll} 
               variant="outline" 
               disabled={isLoading }
             >
               {isLoading ? 'Updating...' : 'Update Attendance'}
             </Button>
-            
+             */}
             <Button 
               onClick={saveAllPayrolls} 
               variant="default" 
