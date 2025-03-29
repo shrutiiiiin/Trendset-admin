@@ -3,7 +3,6 @@ import Sidebar from './Sidebar'
 import { useState, useEffect } from 'react'
 
 export const Layout = () => {
-
   const location = useLocation()
   const [activePage, setActivePage] = useState('Dashboard')
 
@@ -13,26 +12,22 @@ export const Layout = () => {
     else if (path.includes('employees')) setActivePage('Employees')
     else if (path.includes('leaves')) setActivePage('Leaves')
     else if (path.includes('payroll')) setActivePage('Payroll')
+    else if (path.includes('employee/')) setActivePage('Employees') // Handle employee detail page
   }, [location])
-
-  // const handleLogout = async () => {
-  //   await logout()
-  //   navigate('/login')
-  // }
 
   const handlePageChange = (page: string) => {
     setActivePage(page)
   }
 
   return (
-    <div className="flex flex-row min-h-screen bg-gray-100 dark:bg-gray-900">
+    <div className="flex h-screen overflow-hidden bg-gray-100 dark:bg-gray-900">
+      {/* Fixed sidebar */}
       <Sidebar activePage={activePage} onPageChange={handlePageChange} />
-        <div className='flex-1'>
-        <Outlet />
-        </div>
-         
       
-     
+      {/* Scrollable main content */}
+      <div className="flex-1 overflow-y-auto">
+        <Outlet />
+      </div>
     </div>
   )
 }
