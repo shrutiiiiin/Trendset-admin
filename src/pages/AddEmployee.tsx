@@ -415,14 +415,14 @@ Please use these credentials to log into our employee application.
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <Label htmlFor="basePay">Base Pay (₹)</Label>
+            <Label htmlFor="basePay">Basic Pay (₹)</Label>
             <Input
               id="basePay"
               name="basePay"
               type="text"
               value={formData.basePay ? formatNumber(formData.basePay) : ""}
               onChange={handleInputChange}
-              placeholder="Enter base pay"
+              placeholder="Enter basic pay"
               required
             />
           </div>
