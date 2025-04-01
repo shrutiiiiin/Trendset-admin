@@ -538,7 +538,7 @@ const PayrollTable = () => {
         // ESIC: =ROUND(K{row}*0.0075,0)
         { f: `=ROUND(K${rowNum}*0.0075,0)` }, // P
         // Total Deductions: =SUM(L{row}:P{row})
-        { f: `=SUM(L${rowNum}:P${rowNum})` }, // Q
+        { f: `=L${rowNum}+M${rowNum}+N${rowNum}+O${rowNum}+P${rowNum}` }, // Q
         // Net Pay: =K{row}-Q{row}
         { f: `=K${rowNum}-Q${rowNum}` }, // R
         row.cpf || "1800", // S (CPF same as PF by default)
