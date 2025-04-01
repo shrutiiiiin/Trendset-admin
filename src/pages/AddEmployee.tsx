@@ -101,7 +101,7 @@ const AddEmployee = () => {
     try {
       const emailData = {
         to: employeeData.email,
-        subject: `Welcome to Our Company, ${employeeData.name}!`,
+        subject: `Welcome to Trendset, ${employeeData.name}!`,
         body: `Dear ${employeeData.name},
 
 Welcome to our team! We're excited to have you join us as a ${employeeData.designation}.
