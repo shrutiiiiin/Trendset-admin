@@ -102,7 +102,7 @@ const AddEmployee = () => {
       const emailData = {
         to: employeeData.email,
         subject: `Welcome to Trendset, ${employeeData.name}!`,
-        body: `Dear ${employeeData.name},
+        body: `Regarding employee login credentials,
 
 Welcome to our team! We're excited to have you join us as a ${employeeData.designation}.
 
@@ -110,7 +110,7 @@ Your login credentials:
 Employee ID: ${employeeData.employeeId}
 Employee Password: ${employeeData.password}
 
-Please use these credentials to log into our employee portal.
+Please use these credentials to log into our employee application.
 
 
 `,
