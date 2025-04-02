@@ -130,7 +130,7 @@ const EmployeePayrollModal = ({
     const grossEarning = payScale+ da+hra+ specialPay;
     
     // 6. Provident Fund (default 1800 unless changed)
-    const providentFund = Math.round((payScale + da) * 0.25);
+    const providentFund = Math.round((payScale + da) * 0.12);
     
     // 7. Professional Tax (default 200 unless changed)
     const professional = parseFloat(formData.professional) || 200;
@@ -297,7 +297,7 @@ const EmployeePayrollModal = ({
               />
             </div>
             <div>
-              <Label>PF</Label>
+              <Label>Provident Fund</Label>
               <Input
                 type="number"
                 value={formData.providentFund}
