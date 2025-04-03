@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import useEmployeeStore, { EmployeeDetails } from '../store/useEmployee';
 import {
-  Building2, Mail, DollarSign, UserCircle,
+  Building2, Mail, UserCircle,
   Calendar, MapPin, Clock, ArrowLeft,
   BriefcaseBusiness, CalendarClock, Timer, AlertCircle,
   ChevronDown, ChevronUp
