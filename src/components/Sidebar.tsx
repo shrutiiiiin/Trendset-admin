@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { LayoutDashboard, Users, Clock, DollarSign, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, Clock, IndianRupee, LogOut } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 
 interface SidebarProps {
@@ -30,7 +30,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onPageChange }) => {
     {
       title: 'Payroll',
       path: '/payroll',
-      icon: DollarSign,
+      icon: IndianRupee, // Updated to use Indian Rupee symbol
     },
   ];
 
