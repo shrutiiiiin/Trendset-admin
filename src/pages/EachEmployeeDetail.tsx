@@ -304,7 +304,7 @@ const EachEmployeeDetail: React.FC = () => {
             </div>
             <div className="ml-auto hidden sm:block text-right">
               <div className="flex items-center text-white/80 justify-end">
-                <DollarSign className="w-4 h-4 mr-1" />
+               
                 <span className="text-sm">Employee ID:</span>
                 <span className="ml-2 font-medium">{employee.employeeId}</span>
               </div>
@@ -334,14 +334,14 @@ const EachEmployeeDetail: React.FC = () => {
               <div className="bg-gray-50 p-3 rounded-lg">
                 <span className="text-sm text-gray-500">Base Salary</span>
                 <div className="font-semibold text-gray-800 flex items-center mt-1">
-                  <DollarSign className="w-4 h-4 text-green-500 mr-1" />
+
                   ₹{employee.baseSalary?.toLocaleString() || 'N/A'}
                 </div>
               </div>
               <div className="bg-gray-50 p-3 rounded-lg">
                 <span className="text-sm text-gray-500">Special Allowance</span>
                 <div className="font-semibold text-gray-800 flex items-center mt-1">
-                  <DollarSign className="w-4 h-4 text-green-500 mr-1" />
+                 
                   ₹{employee.specialSalary?.toLocaleString() || 'N/A'}
                 </div>
               </div>
