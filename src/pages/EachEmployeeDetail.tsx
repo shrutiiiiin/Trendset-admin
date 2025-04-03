@@ -481,61 +481,71 @@ const EachEmployeeDetail: React.FC = () => {
                       </div>
 
                       {dailyData.workSessions.length > 0 ? (
-                        <div className="space-y-4">
-                          {dailyData.workSessions.map((session, index) => {
-                            // Safe check for valid dates and duration calculation
-                            const checkInTime = safeFormatDate(session.checkInTime, 'hh:mm a', 'N/A');
-                            let checkOutTime = 'In progress';
-                            let duration = 'In progress';
+  <div className="space-y-4">
+    {dailyData.workSessions.map((session, index) => {
+      const checkInTime = safeFormatDate(session.checkInTime, 'hh:mm a', 'N/A');
+      let checkOutTime = 'In progress';
+      let duration = 'In progress';
 
-                            if (session.checkOutTime) {
-                              checkOutTime = safeFormatDate(session.checkOutTime, 'hh:mm a', 'N/A');
+      if (session.checkOutTime) {
+        checkOutTime = safeFormatDate(session.checkOutTime, 'hh:mm a', 'N/A');
 
-                              if (session.checkInTime && session.checkOutTime &&
-                                checkInTime !== 'N/A' && checkOutTime !== 'N/A') {
-                                try {
-                                  const inDate = parseISO(session.checkInTime);
-                                  const outDate = parseISO(session.checkOutTime);
-                                  if (isNaN(inDate.getTime()) || isNaN(outDate.getTime())) {
-                                    throw new Error('Invalid date');
-                                  }
-                                  duration = session.durationMinutes > 0
-                                    ? `${session.durationMinutes} minutes`
-                                    : formatDistance(inDate, outDate, { addSuffix: false });
-                                } catch (err) {
-                                  console.error('Error calculating duration:', err);
-                                  duration = 'N/A';
-                                }
-                              } else {
-                                duration = 'N/A';
-                              }
-                            }
+        if (
+          session.checkInTime &&
+          session.checkOutTime &&
+          checkInTime !== 'N/A' &&
+          checkOutTime !== 'N/A'
+        ) {
+          try {
+            const inDate = parseISO(session.checkInTime);
+            const outDate = parseISO(session.checkOutTime);
+            if (isNaN(inDate.getTime()) || isNaN(outDate.getTime())) {
+              throw new Error('Invalid date');
+            }
 
-                            return (
-                              <div key={index} className="bg-white rounded-lg p-4 border border-gray-200">
-                                <div className="grid grid-cols-2 gap-2 text-sm">
-                                  <div>
-                                    <div className="text-gray-500">Check In</div>
-                                    <div className="font-medium">{checkInTime}</div>
-                                  </div>
-                                  <div>
-                                    <div className="text-gray-500">Check Out</div>
-                                    <div className="font-medium">{checkOutTime}</div>
-                                  </div>
-                                </div>
-                                <div className="flex items-center mt-3 text-gray-700">
-                                  <Timer className="w-4 h-4 mr-2 text-gray-400" />
-                                  <span className="font-medium">{duration}</span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="bg-white rounded-lg p-4 text-gray-500 text-sm italic border border-gray-200">
-                          No work sessions recorded
-                        </div>
-                      )}
+            const minutes = session.durationMinutes;
+            if (minutes >= 60) {
+              const hours = Math.floor(minutes / 60);
+              const remainingMinutes = minutes % 60;
+              duration = remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+            } else {
+              duration = `${minutes} minutes`;
+            }
+          } catch (err) {
+            console.error('Error calculating duration:', err);
+            duration = 'N/A';
+          }
+        } else {
+          duration = 'N/A';
+        }
+      }
+
+      return (
+        <div key={index} className="bg-white rounded-lg p-4 border border-gray-200">
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div>
+              <div className="text-gray-500">Check In</div>
+              <div className="font-medium">{checkInTime}</div>
+            </div>
+            <div>
+              <div className="text-gray-500">Check Out</div>
+              <div className="font-medium">{checkOutTime}</div>
+            </div>
+          </div>
+          <div className="flex items-center mt-3 text-gray-700">
+            <Timer className="w-4 h-4 mr-2 text-gray-400" />
+            <span className="font-medium">{duration}</span>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+) : (
+  <div className="bg-white rounded-lg p-4 text-gray-500 text-sm italic border border-gray-200">
+    No work sessions recorded
+  </div>
+)}
+
                     </div>
                   </div>
                 )}
