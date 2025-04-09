@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { doc, setDoc, Timestamp } from "firebase/firestore";
+import { collection, doc, setDoc, Timestamp } from "firebase/firestore";
 import { db } from "../config/firebase";
 import useEmployeeStore from "../store/useEmployee";
 import { parse, format } from "date-fns";
@@ -117,7 +117,7 @@ Please use these credentials to log into our employee application.
       };
 
       const response = await fetch(
-        "https://stormthor619.pythonanywhere.com/send_email",
+        "https://email-service-one-plum.vercel.app/api/send_email",
         {
           method: "POST",
           headers: {
@@ -214,6 +214,37 @@ Please use these credentials to log into our employee application.
         specialPay: 0,
       });
       if (emailSent) {
+        const currentDate = new Date();
+        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const year = currentDate.getFullYear();
+        const monthYear = `${month}-${year}`;
+        
+        // Create employee payroll document with all required fields
+        await setDoc(doc(collection(employeeDocRef, "payroll"), monthYear), {
+          advance: "0",
+          basic: "0",
+          cpf: "0",
+          createdAt: Timestamp.now(),
+          da: "0",
+          employeeId: "0",
+          esic: "0",
+          esicContribution: "0",
+          grossEarning: "0",
+          hra: "0",
+          id: monthYear,
+          medicalContribution: "0",
+          month: monthYear,
+          netPay: "0",
+          payScale: "0",
+          professional: "0",
+          providentFund: "0",
+          reportedDays: "0",
+          specialPay: "0",
+          tds: "0",
+          totalDeductions: "0",
+          workingDays: "31"
+        });
+
         alert("Employee added successfully and welcome email sent!");
       } else {
         alert(
